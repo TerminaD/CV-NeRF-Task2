@@ -51,20 +51,32 @@ def train() -> None:
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.MSELoss()
     
+    # for e in range(epoch):
+    #     for data in dataloader:
+    #         coords, gt_color = data[0].to(device), data[1].to(device)
+    #         optimizer.zero_grad()
+    #         pred_color = model(coords)
+    #         loss = criterion(gt_color, pred_color)
+    #         loss.backward()
+    #         optimizer.step()
+    #     if e % 10 == 0:
+    #         torch.save(model.state_dict(), f"checkpoints/{ckpt_name}-e{e}.pth")
+    #     psnr_v = test(model, device, gt_img, ckpt_name, training_epoch=e)
+    #     writer.add_scalar('training/psnr', psnr_v, e)
+    
     for e in range(epoch):
-        for data in dataloader:
-            coords, gt_color = data[0].to(device), data[1].to(device)
-            optimizer.zero_grad()
-            pred_color = model(coords)
-            loss = criterion(gt_color, pred_color)
+        for ray, gt_rgb in dataloader:
+            pred_rgb = render_rays(ray)
+            loss = criterion(gt_rgb, pred_rgb)
             loss.backward()
             optimizer.step()
+            
         if e % 10 == 0:
-            torch.save(model.state_dict(), f"checkpoints/{ckpt_name}-e{e}.pth")
-        psnr_v = test(model, device, gt_img, ckpt_name, training_epoch=e)
-        writer.add_scalar('training/psnr', psnr_v, e)
-    
-    
+            testloader
+            pred_img = render_image(testloader[0].rays)
+            gt_img = testloader[0].rgb
+            psnr = psnr(gt_img, pred_img)
+            
     
     
     
