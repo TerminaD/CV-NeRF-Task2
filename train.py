@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 def train() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data', type=str, 
+    parser.add_argument('-d', '--data', type=str, default='data/lego'
                         help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
     parser.add_argument('-c', '--ckpt', type=str, 
                         help='Name of checkpoint to save to. Defaults to timestamp.')
