@@ -16,7 +16,8 @@ def test_pic(index=0,dataset=BlenderDataset("data/lego/test","test")):
     gt_img=sample[1]
 
     concat_img = np.concatenate((pred_img, gt_img), axis=1)
-    plt.imsave(f"result/test_pic{index}.png",pred_img)
+    plt.imsave(f"result/pred_img{index}.png",pred_img)
+    plt.imsave(f"result/con_img{index}.png",con_img)
     plt.imshow(concat_img)
     plt.show()
 
