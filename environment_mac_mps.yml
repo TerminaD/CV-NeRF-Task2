@@ -61,4 +61,5 @@ dependencies:
       - typing-extensions
       - urllib3
       - werkzeug
+      - kornia
       

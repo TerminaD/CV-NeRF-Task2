@@ -1,6 +1,6 @@
-from models.nerf import NeRF
-from models.render import render_ray
-from utils.positional_encoding import PositionalEncoding
+# from models.nerf import NeRF
+# from models.render import render_ray
+# from utils.positional_encoding import PositionalEncoding
 from utils.dataset import BlenderDataset
 
 import argparse
@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 def train() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data', type=str, default='data/lego'
+    parser.add_argument('-d', '--data', type=str, default='data/lego',
                         help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
     parser.add_argument('-c', '--ckpt', type=str, 
                         help='Name of checkpoint to save to. Defaults to timestamp.')
@@ -26,10 +26,10 @@ def train() -> None:
     args = parser.parse_args()
     
     if not args.ckpt:
-        now = datetime.now()
+        now = datetime.datetime.now()
         args.ckpt = now.strftime("%m-%d-%H-%M-%S")
     
-    writer = SummaryWriter()
+    # writer = SummaryWriter()
     
     if torch.cuda.is_available():
         device = 'cuda:0'
@@ -52,7 +52,6 @@ def train() -> None:
     criterion = nn.MSELoss()
     
     for e in range(epoch):
-        print(f"Epoch {e}")
         for data in dataloader:
             coords, gt_color = data[0].to(device), data[1].to(device)
             optimizer.zero_grad()
@@ -70,7 +69,7 @@ def train() -> None:
     
     
     
-    writer.flush()
+    # writer.flush()
     
     
     
