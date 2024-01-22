@@ -1,7 +1,7 @@
 from models.nerf import NeRF
 from models.render import render_ray
 from utils.positional_encoding import PositionalEncoding
-from utils.dataloader import NeRFDataLoader
+from utils.dataset import BlenderDataset
 
 import argparse
 import datetime
@@ -9,6 +9,7 @@ import datetime
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -19,6 +20,7 @@ def train() -> None:
     parser.add_argument('-c', '--ckpt', type=str, 
                         help='Name of checkpoint to save to. Defaults to timestamp.')
     parser.add_argument('-e', '--epoch', type=int, default=100)
+    parser.add_argument('-b', '--batch_size', type=int, default=64)
     parser.add_argument('-l', type=int, default=15, 
                         help='Parameter L in positional encoding.')
     args = parser.parse_args()
@@ -38,7 +40,12 @@ def train() -> None:
     device = torch.device(device)
     print(f"Device is {device}")
     
-    dataloader = NeRFDataLoader()
+    trainset = BlenderDataset(root_dir=args.data, split='train')
+    trainloader = DataLoader(trainset,
+                             shuffle=True,
+                             num_workers=4, 
+                             batch_size=args.batch_size,
+                             pin_memory=True)
     
     model = NeRF()
     optimizer = torch.optim.Adam(model.parameters())
