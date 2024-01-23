@@ -1,5 +1,6 @@
 import torch
 
+@torch.no_grad
 class PositionalEncoding(torch.nn.Module):
     def __init__(self, l):
         """
