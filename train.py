@@ -1,6 +1,5 @@
 from models.nerf import NeRF
 from models.render import render_rays, render_image
-# from utils.positional_encoding import PositionalEncoding
 from utils.dataset import BlenderDataset
 from utils.psnr import psnr_func
 
@@ -9,7 +8,6 @@ import datetime
 
 from einops import rearrange
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -58,11 +56,6 @@ def train() -> None:
                              batch_size=args.batch_size,
                              pin_memory=True)
     testset = BlenderDataset(root_dir=args.data, split='test')
-    testloader = DataLoader(trainset,
-                            shuffle=True,
-                            num_workers=8, 
-                            batch_size=1,   # We only need the first image
-                            pin_memory=True)
     
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
     optimizer = torch.optim.Adam(model.parameters())
@@ -92,7 +85,7 @@ def train() -> None:
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:
             with torch.no_grad:
-                sample = testloader[0]
+                sample = testset[0]
                 
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
@@ -110,20 +103,11 @@ def train() -> None:
                 writer.add_scalar('PSNR/test', psnr, e)
                 
                 torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/{e}.pth")
-                plt.imsave(f'renders/{args.ckpt}/{e}.png', pred_img)
+                plt.imsave(f'renders/{args.ckpt}/train/{e}.png', pred_img)
+    
+    torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/final.pth")           
                 
-                
-            
-            
-    
-    
-    
-    
-    # writer.flush()
-    
-    
-    
-    
+    writer.flush()
     
 
 if __name__ == '__main__':
