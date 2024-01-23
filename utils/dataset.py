@@ -24,7 +24,7 @@ class BlenderDataset(Dataset):
         assert img_wh[0] == img_wh[1], 'image width must equal image height!'
         self.img_wh = img_wh
         self.transform = T.ToTensor()
-
+        
         self.read_meta()
         self.white_back = True
 
