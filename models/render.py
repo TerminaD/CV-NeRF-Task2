@@ -101,8 +101,7 @@ def render_image(rays: torch.Tensor,
         rays: all rays of an image. Can directly use the `rays` key of a
               test-time dataloader.
         batch_size: how many rays to render in one go.
-        img_shape: shape of the image. Can be obtained from the `img` key of a
-                   test-time dataloader.
+        img_shape: shape of the image.
         sample_num: how many points to sample on each ray.
         nerf: a pre-trained NeRF neural network. 
         device: device to run this function on.
