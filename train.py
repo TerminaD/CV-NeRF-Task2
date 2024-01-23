@@ -65,17 +65,16 @@ def train() -> None:
     #     writer.add_scalar('training/psnr', psnr_v, e)
     
     for e in range(epoch):
+        print(f"epoch:{e}")
         for ray, gt_rgb in dataloader:
+            optimizer.zero_grad()
             pred_rgb = render_rays(ray)
             loss = criterion(gt_rgb, pred_rgb)
             loss.backward()
             optimizer.step()
             
         if e % 10 == 0:
-            testloader
-            pred_img = render_image(testloader[0].rays)
-            gt_img = testloader[0].rgb
-            psnr = psnr(gt_img, pred_img)
+            psnr=test_pic()
             
     
     
