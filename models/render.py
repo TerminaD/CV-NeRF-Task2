@@ -1,28 +1,30 @@
 from models.nerf import NeRF
 from utils.positional_encoding import PositionalEncoding
 
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 from einops import rearrange, reduce, repeat
 
+# TODO: tensor to device, no_grad where needed
+
 def render_rays(rays: torch.Tensor,
                 sample_num: int,
                 nerf: NeRF,
-                xyz_L: int,
-                dir_L: int,
                 device) -> torch.Tensor:
     """
     Render a number of rays.
     
     Inputs:
-		rays: shape [num, 8], rays_o, rays_d, near bound & far bound concatenated
-		sampling_num: number of points to sample for each ray
-		nerf: a NeRF neural network
-		xyz_L: the L in xyz's positional encoding
-		dir_L: the L in direction's positional encoding
+        rays: shape [num, 8], rays_o, rays_d, near bound & far bound concatenated
+        sampling_num: number of points to sample for each ray
+        nerf: a NeRF neural network
+        xyz_L: the L in xyz's positional encoding
+        dir_L: the L in direction's positional encoding
   
-	Output:
-		results: shape of [num, 4], RGB & sigma for each ray
+    Output:
+        results: shape of [num,], rendered color of each ray
     """
     
     assert rays.dim() == 2
@@ -39,12 +41,15 @@ def render_rays(rays: torch.Tensor,
     bin_edges = torch.linspace(near, far-bin_size, sample_num)
     bin_edges = bin_edges.repeat(ray_num, 1)
     rands = torch.rand(ray_num, sample_num)
-    scaled_rands = rands*bin_size + bin_edges
-    xyzs = rays_o + rays_d * rearrange(scaled_rands, 'n1 n2 -> n2 n1 1')
+    depths = rands*bin_size + bin_edges
+    xyzs = rays_o + rays_d * rearrange(depths, 'n1 n2 -> n2 n1 1')
     xyzs = rearrange(xyzs, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num * 3
     xyzs = rearrange(xyzs, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     
     # Encode xyz and direction
+    xyz_L = int(nerf.in_channels_xyz / 6)
+    dir_L = int(nerf.in_channels_dir / 6)
+    
     xyz_encoder = PositionalEncoding(xyz_L)
     xyz_encoded = xyz_encoder(xyzs)	# (ray_num * sample_num) * (6 * xyz_L)
     assert xyz_encoded.shape == torch.Size([ray_num * sample_num, 6 * xyz_L])
@@ -56,13 +61,46 @@ def render_rays(rays: torch.Tensor,
     
     xyz_dir_encoded = torch.concat((xyz_encoded, dir_encoded), dim=1)
     
+    # Feed into NeRF
     result = nerf(xyz_dir_encoded)
     
+    # Unpack results
     rgbs = result[:, :3]
-    sigmas = result[]
+    rgbs = rearrange(rgbs, '(ray sample) rgb -> ray sample rgb', 
+                     ray=ray_num, sample=sample_num)
+    sigmas = result[:, 3:4]
+    sigmas = rearrange(sigmas, '(ray sample) 1 -> ray sample', 
+                       ray=ray_num, sample=sample_num)
+
+    # Do neural rendering
+    deltas = torch.diff(depths, dim=1)
+    deltas = torch.concat((deltas, 1e7 * torch.ones((ray_num, 1))), dim=1)
+    assert deltas.shape == torch.Size([ray_num, sample_num])
     
+    exps = torch.exp(-sigmas*deltas)
     
+    Ts = torch.cumprod(torch.concat((torch.ones(ray_num, 1), exps), dim=1), dim=1)[:, :-1]
+    
+    pixel_rgb = torch.prod(Ts * (1 - exps) * rgbs, 1)
+    
+    return pixel_rgb
     
 
-def render_image():
-    pass
+def render_image(rays: torch.Tensor,
+                 batch_size: int,
+                 img_shape: Tuple[int, int],
+                 sample_num: int,
+                 nerf: NeRF,
+                 device) -> torch.Tensor:
+    batches = torch.split(rays, batch_size)
+    
+    rgb_batches = []
+    for ray_batch in batches:
+        rgb_batch = render_rays(ray_batch, sample_num, nerf, device)
+        rgb_batches.append(rgb_batch)
+    rgb_batches = torch.stack(rgb_batches, dim=0)
+    
+    rgb_batches = rearrange(rgb_batches, '(h w) 3 -> h w 3', 
+                            h=img_shape[0], w=img_shape[1])
+    
+    return rgb_batches
