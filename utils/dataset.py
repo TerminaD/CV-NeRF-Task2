@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 
-from utils.pixel2ray import get_ray_directions, get_rays
+from utils.pixel2ray import init_p2c_directions, get_p2w_ray_directions
 
 
 class BlenderDataset(Dataset):
@@ -46,7 +46,7 @@ class BlenderDataset(Dataset):
         
         # ray directions for all pixels, same for all images (same H, W, focal)
         self.directions = \
-            get_ray_directions(h, w, self.focal) # (h, w, 3)
+            init_p2c_directions(h, w, self.focal) # (h, w, 3)
             
         if self.split == 'train': # create buffer of all rays and rgb data
             self.image_paths = []
@@ -67,7 +67,7 @@ class BlenderDataset(Dataset):
                 img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
                 self.all_rgbs += [img]
                 
-                rays_o, rays_d = get_rays(self.directions, c2w) # both (h*w, 3)
+                rays_o, rays_d = get_p2w_ray_directions(self.directions, c2w) # both (h*w, 3)
 
                 self.all_rays += [torch.cat([rays_o, rays_d, 
                                              self.near*torch.ones_like(rays_o[:, :1]),
@@ -100,7 +100,7 @@ class BlenderDataset(Dataset):
             img = img.view(4, -1).permute(1, 0) # (H*W, 4) RGBA
             img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
 
-            rays_o, rays_d = get_rays(self.directions, c2w)
+            rays_o, rays_d = get_p2w_ray_directions(self.directions, c2w)
 
             rays = torch.cat([rays_o, rays_d, 
                               self.near*torch.ones_like(rays_o[:, :1]),
