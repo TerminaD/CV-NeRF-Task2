@@ -4,10 +4,7 @@ from utils.positional_encoding import PositionalEncoding
 from typing import Tuple
 
 import torch
-import torch.nn as nn
-from einops import rearrange, reduce, repeat
-
-# TODO: tensor to device, no_grad where needed
+from einops import rearrange
 
 def render_rays(rays: torch.Tensor,
                 sample_num: int,
@@ -19,13 +16,16 @@ def render_rays(rays: torch.Tensor,
     Inputs:
         rays: shape [num, 8], rays_o, rays_d, near bound & far bound concatenated
         sampling_num: number of points to sample for each ray
-        nerf: a NeRF neural network
+        nerf: a pre-trained NeRF neural network
         xyz_L: the L in xyz's positional encoding
         dir_L: the L in direction's positional encoding
   
     Output:
         results: shape of [num,], rendered color of each ray
     """
+    
+    rays.to(device)
+    nerf.to(device)
     
     assert rays.dim() == 2
     assert rays.shape[1] == 8
@@ -85,13 +85,35 @@ def render_rays(rays: torch.Tensor,
     
     return pixel_rgb
     
-
+@torch.no_grad
 def render_image(rays: torch.Tensor,
                  batch_size: int,
                  img_shape: Tuple[int, int],
                  sample_num: int,
                  nerf: NeRF,
                  device) -> torch.Tensor:
+    """
+    Renders an image.
+    This function should not be used for training purposes, as it does not
+    calculate gradients.
+    
+    Inputs:
+        rays: all rays of an image. Can directly use the `rays` key of a
+              test-time dataloader.
+        batch_size: how many rays to render in one go.
+        img_shape: shape of the image. Can be obtained from the `img` key of a
+                   test-time dataloader.
+        sample_num: how many points to sample on each ray.
+        nerf: a pre-trained NeRF neural network. 
+        device: device to run this function on.
+        
+    Output:
+        The predicted RGB image. Shape: [img_shape[0], img_shape[1], 3]
+    """
+    
+    rays.to(device)
+    nerf.to(device)
+    
     batches = torch.split(rays, batch_size)
     
     rgb_batches = []
