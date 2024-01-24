@@ -1,12 +1,10 @@
 from models.nerf import NeRF
 from models.render import render_rays, render_image
 from utils.dataset import BlenderDataset
-from utils.psnr import PSNR
-# from test import test_pic
+from utils.psnr import psnr_func
 
 import argparse
 import datetime
-import random
 
 from tqdm import tqdm
 from einops import rearrange
@@ -98,7 +96,7 @@ def train() -> None:
                                 h=800, w=800)
                 
                 loss = criterion(gt_img, pred_img)
-                psnr = PSNR(gt_img, pred_img)
+                psnr = psnr_func(gt_img, pred_img)
                 
                 writer.add_scalar('Loss/test', loss, e)
                 writer.add_scalar('PSNR/test', psnr, e)
