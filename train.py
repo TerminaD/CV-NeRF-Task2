@@ -43,14 +43,14 @@ def parse_args(debug=False):
         parser.add_argument('-c', '--ckpt', type=str, 
                             help='Name of checkpoint to save to. Defaults to timestamp.')
         parser.add_argument('-e', '--epoch', type=int, default=100)
-        parser.add_argument('-b', '--batch_size', type=int, default=64)
+        parser.add_argument('-b', '--batch_size', type=int, default=16384)
         parser.add_argument('--xyz_L', type=int, default=10, 
                             help='Parameter L in positional encoding for xyz.')
         parser.add_argument('--dir_L', type=int, default=4, 
                             help='Parameter L in positional encoding for direction.')
-        parser.add_argument('-s', '--sample_num', type=int, default=75, 
+        parser.add_argument('-s', '--sample_num', type=int, default=50, 
                             help='How many points to sample on each ray.')
-        parser.add_argument('-t', '--test_every', type=int, default=10, 
+        parser.add_argument('-t', '--test_every', type=int, default=5, 
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', action='store_true',
                             help='Perform testing during training')
@@ -60,7 +60,7 @@ def parse_args(debug=False):
 
 
 def train() -> None:
-    args = parse_args(debug=True)
+    args = parse_args(debug=False)
     
     if not args.ckpt:
         now = datetime.datetime.now()
