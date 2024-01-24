@@ -3,8 +3,8 @@ from utils.positional_encoding import PositionalEncoding
 
 from typing import Tuple
 
-import torch
 from einops import rearrange
+import torch
 
 def render_rays(rays: torch.Tensor,
                 sample_num: int,

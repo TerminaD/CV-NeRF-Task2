@@ -1,44 +1,17 @@
-import torch
-import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
-from models.render import render_rays, render_image
 from models.nerf import NeRF
-from einops import rearrange
-import argparse
+from models.render import render_image
 from utils.dataset import BlenderDataset
+from utils.psnr import psnr_func
 
+import argparse
 
+from tqdm import tqdm
+from einops import rearrange
+import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
 
-
-def PSNR(pred_img,gt_img):
-    mse = np.mean((original - compressed) ** 2) 
-    if(mse == 0):  # MSE is zero means no noise is present in the signal . 
-                  # Therefore PSNR have no importance. 
-        return 100
-    psnr = 20 * np.log10(1/np.sqrt(mse)) 
-    return psnr 
-
-def test_pic(index=0,dataset=BlenderDataset("data/lego/test","test")):
-    sample=dataset[index]
-
-    pred_img=render_img(sample[0])
-    gt_img=sample[1]
-
-    concat_img = np.concatenate((pred_img, gt_img), axis=1)
-    plt.imsave(f"result/pred_img{index}.png",pred_img)
-    plt.imsave(f"result/con_img{index}.png",con_img)
-    plt.imshow(concat_img)
-    plt.show()
-
-    psnr=PSNR(test_img,gt_img)
-    print(psnr)
-    return psnr
-
-def test_pics():
-    dataset=BlenderDataset("data/lego/test","test")
-    for i,data in enum(dataset):
-        test_pic(i,data)
-          
+        
 @torch.no_grad   
 def test_all() -> None:
     parser = argparse.ArgumentParser()
@@ -69,7 +42,42 @@ def test_all() -> None:
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
     model.load_state_dict(torch.load(args.ckpt, map_location=device))
     
+    criterion = nn.MSELoss()
     
+    losses = []
+    psnrs = []
+    
+    for i in tqdm(range(len(testset))):
+        sample = testset[i]
+        rays = sample['rays']
+        gt_img = rearrange(sample['rgbs'], '(h w) 3 -> h w 3',
+                           h=800, w=800)
+        
+        pred_img = render_image(rays=rays,
+                                batch_size=args.batch_size,
+                                img_shape=(800, 800),
+                                sample_num=args.sample_num,
+                                nerf=model,
+                                device=device)
+        
+        loss = criterion(gt_img, pred_img)
+        psnr = psnr_func(gt_img, pred_img)
+        losses.append(loss)
+        psnrs.append(psnr)
+        
+        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', pred_img)
+        
+    average_loss = sum(losses) / len(losses)
+    average_psnr = sum(psnrs) / len (psnrs)
+    
+    with open(f'renders/{args.ckpt}/test/results.txt', 'w') as f:
+        f.write(f'Average MSE Loss: {average_loss}\n')
+        for i, loss in enumerate(losses):
+            f.write(f'MSE Loss for Image {i}: {loss}\n')
+        f.write('\n')
+        f.write(f'Average PSNR: {average_psnr}\n')
+        for i, psnr in enumerate(psnrs):
+            f.write(f'PSNR for Image {i}: {psnr}\n')
         
 
 if __name__ == '__main__':

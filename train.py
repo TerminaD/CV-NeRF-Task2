@@ -6,6 +6,7 @@ from utils.psnr import psnr_func
 import argparse
 import datetime
 
+from tqdm import tqdm
 from einops import rearrange
 import matplotlib.pyplot as plt
 import torch
@@ -65,7 +66,7 @@ def train() -> None:
         print(f"epoch:{e}")
         cum_loss = 0.0
         
-        for sample in trainloader:
+        for sample in tqdm(trainloader, desc="Training", leave=False):
             rays = sample['rays']
             gt_rgbs = sample['rgbs']
             
