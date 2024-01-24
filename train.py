@@ -1,10 +1,12 @@
 from models.nerf import NeRF
 from models.render import render_rays, render_image
 from utils.dataset import BlenderDataset
-from utils.psnr import psnr_func
+from utils.psnr import PSNR
+# from test import test_pic
 
 import argparse
 import datetime
+import random
 
 from tqdm import tqdm
 from einops import rearrange
@@ -57,11 +59,9 @@ def train() -> None:
                              batch_size=args.batch_size,
                              pin_memory=True)
     testset = BlenderDataset(root_dir=args.data, split='test')
-    
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.MSELoss()
-    
     for e in range(args.epoch):
         print(f"epoch:{e}")
         cum_loss = 0.0
@@ -82,12 +82,12 @@ def train() -> None:
         
         cum_loss /= len(trainloader)
         writer.add_scalar('Loss/train', cum_loss, e)
+        print(cum_loss)
         
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:
             with torch.no_grad:
                 sample = testset[0]
-                
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
                                         img_shape=(800, 800),
@@ -98,7 +98,7 @@ def train() -> None:
                                 h=800, w=800)
                 
                 loss = criterion(gt_img, pred_img)
-                psnr = psnr_func(gt_img, pred_img)
+                psnr = PSNR(gt_img, pred_img)
                 
                 writer.add_scalar('Loss/test', loss, e)
                 writer.add_scalar('PSNR/test', psnr, e)
