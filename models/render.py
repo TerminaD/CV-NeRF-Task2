@@ -3,7 +3,7 @@ from utils.positional_encoding import PositionalEncoding
 
 from typing import Tuple
 
-from einops import rearrange
+from einops import rearrange, repeat
 import torch
 
 def render_rays(rays: torch.Tensor,
@@ -14,7 +14,7 @@ def render_rays(rays: torch.Tensor,
     Render a number of rays.
     
     Inputs:
-        rays: shape [num, 8], rays_o, rays_d, near bound & far bound concatenated
+        rays: shape [num, 8], rays_o, rays_d, near bound & far bound catenated
         sampling_num: number of points to sample for each ray
         nerf: a pre-trained NeRF neural network
         xyz_L: the L in xyz's positional encoding
@@ -38,9 +38,9 @@ def render_rays(rays: torch.Tensor,
     far = rays[0][7]
     
     bin_size = (far - near) / sample_num
-    bin_edges = torch.linspace(near, far-bin_size, sample_num)
+    bin_edges = torch.linspace(near, far-bin_size, sample_num).to(device)
     bin_edges = bin_edges.repeat(ray_num, 1)
-    rands = torch.rand(ray_num, sample_num)
+    rands = torch.rand(ray_num, sample_num).to(device)
     depths = rands*bin_size + bin_edges
     xyzs = rays_o + rays_d * rearrange(depths, 'n1 n2 -> n2 n1 1')
     xyzs = rearrange(xyzs, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num * 3
@@ -56,10 +56,11 @@ def render_rays(rays: torch.Tensor,
     
     dir_encoder = PositionalEncoding(dir_L)
     dir_encoded = dir_encoder(rays_d) # ray_num * (6 * dir_L)
-    dir_encoded = torch.repeat_interleave(dir_encoded, torch.tensor([sample_num, 1])) # (ray_num * sample_num) * (6 * dir_L)
+    
+    dir_encoded = torch.repeat_interleave(dir_encoded, sample_num, dim=0) # (ray_num * sample_num) * (6 * dir_L)
     assert dir_encoded.shape == torch.Size([ray_num * sample_num, 6 * dir_L])
     
-    xyz_dir_encoded = torch.concat((xyz_encoded, dir_encoded), dim=1)
+    xyz_dir_encoded = torch.cat((xyz_encoded, dir_encoded), dim=1)
     
     # Feed into NeRF
     result = nerf(xyz_dir_encoded)
@@ -74,14 +75,15 @@ def render_rays(rays: torch.Tensor,
 
     # Do neural rendering
     deltas = torch.diff(depths, dim=1)
-    deltas = torch.concat((deltas, 1e7 * torch.ones((ray_num, 1))), dim=1)
+    deltas = torch.cat((deltas, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
     assert deltas.shape == torch.Size([ray_num, sample_num])
     
     exps = torch.exp(-sigmas*deltas)
     
-    Ts = torch.cumprod(torch.concat((torch.ones(ray_num, 1), exps), dim=1), dim=1)[:, :-1]
+    Ts = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps), dim=1), dim=1)[:, :-1]
     
-    pixel_rgb = torch.prod(Ts * (1 - exps) * rgbs, 1)
+    pixel_rgb = torch.prod(repeat(Ts * (1 - exps), 'ray sample -> ray sample 3') * rgbs, 1)
+    assert pixel_rgb.shape == torch.Size([ray_num, 3])
     
     return pixel_rgb
     

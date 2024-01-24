@@ -49,9 +49,9 @@ def test_all() -> None:
     
     for i in tqdm(range(len(testset))):
         sample = testset[i]
-        rays = sample['rays']
+        rays = sample['rays'].to(device)
         gt_img = rearrange(sample['rgbs'], '(h w) 3 -> h w 3',
-                           h=800, w=800)
+                           h=800, w=800).to(device)
         
         pred_img = render_image(rays=rays,
                                 batch_size=args.batch_size,

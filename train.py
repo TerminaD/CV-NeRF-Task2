@@ -28,7 +28,7 @@ def parse_args(debug=False):
                             help='Parameter L in positional encoding for xyz.')
         parser.add_argument('--dir_L', type=int, default=4, 
                             help='Parameter L in positional encoding for direction.')
-        parser.add_argument('-s', '--sample_num', type=int, default=75, 
+        parser.add_argument('-s', '--sample_num', type=int, default=10, 
                             help='How many points to sample on each ray.')
         parser.add_argument('-t', '--test_every', type=int, default=1, 
                             help='Performs testing after we\'ve trained for this many epochs.')
@@ -84,16 +84,19 @@ def train() -> None:
                              batch_size=args.batch_size,
                              pin_memory=True)
     testset = BlenderDataset(root_dir=args.data, split='test')
+    
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
+    model.to(device)
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.MSELoss()
+    
     for e in range(args.epoch):
         print(f"epoch:{e}")
         cum_loss = 0.0
         
         for sample in tqdm(trainloader, desc="Training", leave=False):
-            rays = sample['rays']
-            gt_rgbs = sample['rgbs']
+            rays = sample['rays'].to(device)
+            gt_rgbs = sample['rgbs'].to(device)
             
             optimizer.zero_grad()
             
