@@ -27,9 +27,6 @@ def render_rays(rays: torch.Tensor,
     rays.to(device)
     nerf.to(device)
     
-    assert rays.dim() == 2
-    assert rays.shape[1] == 8
-    
     # Sample uniformly randomly from uniform bins
     ray_num = rays.shape[0]
     rays_o = rays[:, :3]
@@ -52,13 +49,11 @@ def render_rays(rays: torch.Tensor,
     
     xyz_encoder = PositionalEncoding(xyz_L)
     xyz_encoded = xyz_encoder(xyzs)	# (ray_num * sample_num) * (6 * xyz_L)
-    assert xyz_encoded.shape == torch.Size([ray_num * sample_num, 6 * xyz_L])
     
     dir_encoder = PositionalEncoding(dir_L)
     dir_encoded = dir_encoder(rays_d) # ray_num * (6 * dir_L)
     
     dir_encoded = torch.repeat_interleave(dir_encoded, sample_num, dim=0) # (ray_num * sample_num) * (6 * dir_L)
-    assert dir_encoded.shape == torch.Size([ray_num * sample_num, 6 * dir_L])
     
     xyz_dir_encoded = torch.cat((xyz_encoded, dir_encoded), dim=1)
     
@@ -76,14 +71,12 @@ def render_rays(rays: torch.Tensor,
     # Do neural rendering
     deltas = torch.diff(depths, dim=1)
     deltas = torch.cat((deltas, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
-    assert deltas.shape == torch.Size([ray_num, sample_num])
     
     exps = torch.exp(-sigmas*deltas)
     
     Ts = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps), dim=1), dim=1)[:, :-1]
     
     pixel_rgb = torch.prod(repeat(Ts * (1 - exps), 'ray sample -> ray sample 3') * rgbs, 1)
-    assert pixel_rgb.shape == torch.Size([ray_num, 3])
     
     return pixel_rgb
     

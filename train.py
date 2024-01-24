@@ -108,9 +108,14 @@ def train() -> None:
             
             optimizer.step()
         
-        cum_loss /= len(trainloader)
-        writer.add_scalar('Loss/train', cum_loss, e)
-        print(cum_loss)
+        print(len(trainloader))
+        if len(trainloader) == 0:
+            writer.add_scalar('Cumulative_Loss/train', cum_loss, e)
+            print(cum_loss)
+        else:
+            cum_loss /= len(trainloader)
+            writer.add_scalar('Loss/train', cum_loss, e)
+            print(cum_loss)
         
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:

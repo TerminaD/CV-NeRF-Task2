@@ -3,7 +3,7 @@ import torch
 
 def init_p2c_directions(H: int = 800, 
                         W: int = 800, 
-                        focal: float =1100) -> torch.Tensor:
+                        focal: float = 1100) -> torch.Tensor:
     """
     Calculates the directions of rays from the camera to each pixel.
     This only depends on the dimensions of the image and the camera focal length.
@@ -40,7 +40,7 @@ def get_p2w_ray_directions(dir: torch.Tensor, c2w: torch.Tensor):
     rays_dir = dir @ c2w[:, :3].T
     
     # Normalizd direction vectors
-    rays_nor = torch.norm(rays_dir, dim=-1, keepdim=True)
+    rays_nor = torch.norm(rays_dir, dim=-1, keepdim=True) + 1e-7
     rays_dir /= rays_nor
     
     # The origin is camera position in world coordinates
