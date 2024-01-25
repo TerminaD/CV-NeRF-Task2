@@ -34,6 +34,8 @@ def parse_args(debug=False):
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', default=True,
                             help='Perform testing during training')
+        parser.add_argument('--lr', type=float, default=1e-3,
+                            help='Learning rate')
         args = parser.parse_args()
         
     else:
@@ -62,7 +64,7 @@ def parse_args(debug=False):
 
 
 def train() -> None:
-    debug = False
+    debug = True
     
     args = parse_args(debug)
     
