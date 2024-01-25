@@ -19,12 +19,12 @@ def test_all() -> None:
                         help='Path to collection of images to test NeRF on. Should follow COLMAP format.')
     parser.add_argument('-c', '--ckpt', type=str, required=True,
                         help='Name of checkpoint to load.')
-    parser.add_argument('-b', '--batch_size', type=int, default=64)
+    parser.add_argument('-b', '--batch_size', type=int, default=16384)
     parser.add_argument('--xyz_L', type=int, default=10, 
                         help='Parameter L in positional encoding for xyz.')
     parser.add_argument('--dir_L', type=int, default=4, 
                         help='Parameter L in positional encoding for direction.')
-    parser.add_argument('-s', '--sample_num', type=int, default=75, 
+    parser.add_argument('-s', '--sample_num', type=int, default=50, 
                         help='How many points to sample on each ray.')
     args = parser.parse_args()
         

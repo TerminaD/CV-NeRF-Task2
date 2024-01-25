@@ -29,8 +29,8 @@ def render_rays(rays: torch.Tensor,
     
     # Sample uniformly randomly from uniform bins
     ray_num = rays.shape[0]
-    rays_o = rays[:, :3]
-    rays_d = rays[:, 3:6]
+    rays_o = rays[:, :3].to(device)
+    rays_d = rays[:, 3:6].to(device)
     near = rays[0][6]
     far = rays[0][7]
     
@@ -39,7 +39,7 @@ def render_rays(rays: torch.Tensor,
     bin_edges = bin_edges.repeat(ray_num, 1)
     rands = torch.rand(ray_num, sample_num).to(device)
     depths = rands*bin_size + bin_edges
-    xyzs = rays_o + rays_d * rearrange(depths, 'n1 n2 -> n2 n1 1')
+    xyzs = rays_o + rays_d * rearrange(depths, 'n1 n2 -> n2 n1 1').to(device)
     xyzs = rearrange(xyzs, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num * 3
     xyzs = rearrange(xyzs, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     
@@ -114,9 +114,10 @@ def render_image(rays: torch.Tensor,
     for ray_batch in batches:
         rgb_batch = render_rays(ray_batch, sample_num, nerf, device)
         rgb_batches.append(rgb_batch)
-    rgb_batches = torch.stack(rgb_batches, dim=0)
+    last_rgb_batch = rgb_batches.pop()
+    rgb_batches = torch.cat(rgb_batches, dim=0)
+    rgb_batches = torch.cat((rgb_batches, last_rgb_batch), dim=0)
     
-    rgb_batches = rearrange(rgb_batches, '(h w) 3 -> h w 3', 
-                            h=img_shape[0], w=img_shape[1])
+    rgb_batches = rgb_batches.reshape(img_shape[0], img_shape[1], 3)
     
     return rgb_batches

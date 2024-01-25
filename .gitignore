@@ -4,3 +4,5 @@ __pycache__/*
 scratch.py
 runs/*
 data/*
+renders/*
+checkpoints/*
