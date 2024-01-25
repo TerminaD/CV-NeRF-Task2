@@ -48,7 +48,8 @@ class NeRF(nn.Module):
                                 nn.ReLU(True))
 
         # output layers
-        self.sigma = nn.Linear(W, 1)
+        self.sigma = nn.Sequential(nn.Linear(W, 1),
+                                   nn.Sigmoid())
         self.rgb = nn.Sequential(
                         nn.Linear(W//2, 3),
                         nn.Sigmoid())

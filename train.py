@@ -34,6 +34,8 @@ def parse_args(debug=False):
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', default=True,
                             help='Perform testing during training')
+        parser.add_argument('--lr', type=float, default=1e-3,
+                            help='Learning rate')
         args = parser.parse_args()
         
     else:
@@ -130,6 +132,8 @@ def train() -> None:
                                         nerf=model,
                                         device=device)
                 gt_img = sample['rgbs'].reshape(200, 200, 3).to(device)
+                print(gt_img)
+                print(pred_img)
                 
                 loss = criterion(gt_img, pred_img)
                 psnr = psnr_func(gt_img, pred_img)
