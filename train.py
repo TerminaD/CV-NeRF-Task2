@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 def parse_args(debug=False):
     if debug:
         parser = argparse.ArgumentParser()
-        parser.add_argument('-d', '--data', type=str, default='data/lego',
+        parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                             help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
         parser.add_argument('-c', '--ckpt', type=str, default='debug3',
                             help='Name of checkpoint to save to. Defaults to timestamp.')
@@ -38,9 +38,9 @@ def parse_args(debug=False):
         
     else:
         parser = argparse.ArgumentParser()
-        parser.add_argument('-d', '--data', type=str, default='data/lego',
+        parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                             help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
-        parser.add_argument('-c', '--ckpt', type=str, 
+        parser.add_argument('-c', '--ckpt', type=str, required=True,
                             help='Name of checkpoint to save to. Defaults to timestamp.')
         parser.add_argument('-e', '--epoch', type=int, default=100)
         parser.add_argument('-b', '--batch_size', type=int, default=16384)
@@ -50,10 +50,12 @@ def parse_args(debug=False):
                             help='Parameter L in positional encoding for direction.')
         parser.add_argument('-s', '--sample_num', type=int, default=50, 
                             help='How many points to sample on each ray.')
-        parser.add_argument('-t', '--test_every', type=int, default=1, 
+        parser.add_argument('-t', '--test_every', type=int, default=5, 
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', action='store_true',
                             help='Perform testing during training')
+        parser.add_argument('--lr', type=float, default=1e-3,
+                            help='Learning rate')
         args = parser.parse_args()
         
     return args
@@ -92,6 +94,9 @@ def train() -> None:
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.MSELoss()
     
+    os.makedirs(f'checkpoints/{args.ckpt}', exist_ok=True)
+    os.makedirs(f'renders/{args.ckpt}/train', exist_ok=True)
+    
     for e in range(args.epoch):
         print(f"epoch:{e}")
         cum_loss = 0.0
@@ -114,20 +119,17 @@ def train() -> None:
         writer.add_scalar('Loss/train', cum_loss, e)
         print(cum_loss)
         
-        os.makedirs(f'checkpoints/{args.ckpt}', exist_ok=True)
-        os.makedirs(f'renders/{args.ckpt}/train', exist_ok=True)
-        
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:
             with torch.no_grad():
                 sample = testset[0]
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
-                                        img_shape=(800, 800),
+                                        img_shape=(200, 200),
                                         sample_num=args.sample_num,
                                         nerf=model,
                                         device=device)
-                gt_img = sample['rgbs'].reshape(800, 800, 3).to(device)
+                gt_img = sample['rgbs'].reshape(200, 200, 3).to(device)
                 
                 loss = criterion(gt_img, pred_img)
                 psnr = psnr_func(gt_img, pred_img)

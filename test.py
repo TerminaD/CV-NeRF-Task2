@@ -16,7 +16,7 @@ import torch.nn as nn
 @torch.no_grad   
 def test_all() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data', type=str, default='data/lego',
+    parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                         help='Path to collection of images to test NeRF on. Should follow COLMAP format.')
     parser.add_argument('-c', '--ckpt', type=str, required=True,
                         help='Name of checkpoint to load.')
@@ -48,14 +48,16 @@ def test_all() -> None:
     losses = []
     psnrs = []
     
+    os.makedirs(f'renders/{args.ckpt}/test')
+    
     for i in tqdm(range(len(testset))):
         sample = testset[i]
         rays = sample['rays'].to(device)
-        gt_img = torch.reshape(sample['rgbs'], (800, 800, 3)).to(device)
+        gt_img = torch.reshape(sample['rgbs'], (200, 200, 3)).to(device)
         
         pred_img = render_image(rays=rays,
                                 batch_size=args.batch_size,
-                                img_shape=(800, 800),
+                                img_shape=(200, 200),
                                 sample_num=args.sample_num,
                                 nerf=model,
                                 device=device)
@@ -65,7 +67,6 @@ def test_all() -> None:
         losses.append(loss)
         psnrs.append(psnr)
         
-        os.makedirs(f'renders/{args.ckpt}/test')
         plt.imsave(f'renders/{args.ckpt}/test/{i}.png', pred_img.cpu().numpy())
         
     average_loss = sum(losses) / len(losses)

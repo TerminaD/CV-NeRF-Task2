@@ -18,7 +18,7 @@ class BlenderDataset(Dataset):
     (https://github.com/kwea123/nerf_pl/tree/master)
     under the MIT license.
     """
-    def __init__(self, root_dir, split='train', img_wh=(800, 800)):
+    def __init__(self, root_dir, split='train', img_wh=(200, 200)):
         self.root_dir = root_dir
         self.split = split
         assert img_wh[0] == img_wh[1], 'image width must equal image height!'

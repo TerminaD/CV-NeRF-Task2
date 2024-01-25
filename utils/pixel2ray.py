@@ -1,8 +1,8 @@
 import torch
 
 
-def init_p2c_directions(H: int = 800, 
-                        W: int = 800, 
+def init_p2c_directions(H: int = 200, 
+                        W: int = 200, 
                         focal: float = 1100) -> torch.Tensor:
     """
     Calculates the directions of rays from the camera to each pixel.
