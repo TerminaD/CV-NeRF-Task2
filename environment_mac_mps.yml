@@ -5,8 +5,9 @@ channels:
   - nvidia
   - pytorch
 dependencies:
+  - pip
   - python=3.11.7
-  - torch=2.1.2
+  - pytorch=2.1.2
   - torchvision=0.16.2
   - pip:
       - einops
@@ -14,4 +15,3 @@ dependencies:
       - pillow
       - tensorboard
       - tqdm
-      
