@@ -112,7 +112,7 @@ def train() -> None:
         
         cum_loss /= len(trainloader)
         writer.add_scalar('Loss/train', cum_loss, e)
-        print(cum_loss)
+        print(cum_loss.item())
         
         os.makedirs(f'checkpoints/{args.ckpt}', exist_ok=True)
         os.makedirs(f'renders/{args.ckpt}/train', exist_ok=True)
@@ -136,7 +136,7 @@ def train() -> None:
                 writer.add_scalar('PSNR/test', psnr, e)
                 
                 torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/{e}.pth")
-                plt.imsave(f'renders/{args.ckpt}/train/{e}.png', pred_img.cpu().numpy())
+                plt.imsave(f'renders/{args.ckpt}/train/{e}.png', torch.clip(pred_img, 0, 1).cpu().numpy())
     
     torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/final.pth")           
                 
