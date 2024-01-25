@@ -119,7 +119,7 @@ def train() -> None:
         
         cum_loss /= len(trainloader)
         writer.add_scalar('Loss/train', cum_loss, e)
-        print(cum_loss)
+        print(cum_loss.item())
         
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:
@@ -132,6 +132,8 @@ def train() -> None:
                                         nerf=model,
                                         device=device)
                 gt_img = sample['rgbs'].reshape(200, 200, 3).to(device)
+                print(gt_img)
+                print(pred_img)
                 
                 loss = criterion(gt_img, pred_img)
                 psnr = psnr_func(gt_img, pred_img)
@@ -140,7 +142,7 @@ def train() -> None:
                 writer.add_scalar('PSNR/test', psnr, e)
                 
                 torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/{e}.pth")
-                plt.imsave(f'renders/{args.ckpt}/train/{e}.png', pred_img.cpu().numpy())
+                plt.imsave(f'renders/{args.ckpt}/train/{e}.png', torch.clip(pred_img, 0, 1).cpu().numpy())
     
     torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/final.pth")           
                 

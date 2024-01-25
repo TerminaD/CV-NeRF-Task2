@@ -67,7 +67,7 @@ def test_all() -> None:
         losses.append(loss)
         psnrs.append(psnr)
         
-        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', pred_img.cpu().numpy())
+        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', torch.clip(pred_img, 0, 1).cpu().numpy())
         
     average_loss = sum(losses) / len(losses)
     average_psnr = sum(psnrs) / len (psnrs)
