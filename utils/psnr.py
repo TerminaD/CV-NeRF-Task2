@@ -1,5 +1,6 @@
 import torch
 
+@torch.no_grad
 def psnr_func(gt_img, pred_img):
     mse = torch.mean((gt_img - pred_img) ** 2) 
     
