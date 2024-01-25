@@ -58,6 +58,8 @@ def parse_args(debug=False):
                             help='Perform testing during training')
         parser.add_argument('--lr', type=float, default=1e-3,
                             help='Learning rate')
+        parser.add_argument('-l', '--length', type=int, default=200,
+                            help='Length of images. Currently only support square images.')
         args = parser.parse_args()
         
     return args
@@ -83,13 +85,17 @@ def train() -> None:
     device = torch.device(device)
     print(f"Device is {device}")
     
-    trainset = BlenderDataset(root_dir=args.data, split='train')
+    trainset = BlenderDataset(root_dir=args.data, 
+                              split='train', 
+                              img_wh=(args.length, args.length))
     trainloader = DataLoader(trainset,
                              shuffle=True,
                              num_workers=8, 
                              batch_size=args.batch_size,
                              pin_memory=True)
-    testset = BlenderDataset(root_dir=args.data, split='test')
+    testset = BlenderDataset(root_dir=args.data, 
+                             split='test', 
+                             img_wh=(args.length, args.length))
     
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
     model.to(device)
@@ -127,11 +133,11 @@ def train() -> None:
                 sample = testset[0]
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
-                                        img_shape=(200, 200),
+                                        img_shape=(args.length, args.length),
                                         sample_num=args.sample_num,
                                         nerf=model,
                                         device=device)
-                gt_img = sample['rgbs'].reshape(200, 200, 3).to(device)
+                gt_img = sample['rgbs'].reshape(args.length, args.length, 3).to(device)
                 print(gt_img)
                 print(pred_img)
                 

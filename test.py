@@ -38,7 +38,9 @@ def test_all() -> None:
     device = torch.device(device)
     print(f"Device is {device}")
     
-    testset = BlenderDataset(root_dir=args.data, split='test')
+    testset = BlenderDataset(root_dir=args.data, 
+                             split='test', 
+                             img_wh=(args.length, args.length))
     
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
     model.load_state_dict(torch.load(args.ckpt, map_location=device))
@@ -53,11 +55,11 @@ def test_all() -> None:
     for i in tqdm(range(len(testset))):
         sample = testset[i]
         rays = sample['rays'].to(device)
-        gt_img = torch.reshape(sample['rgbs'], (200, 200, 3)).to(device)
+        gt_img = torch.reshape(sample['rgbs'], (args.length, args.length, 3)).to(device)
         
         pred_img = render_image(rays=rays,
                                 batch_size=args.batch_size,
-                                img_shape=(200, 200),
+                                img_shape=(args.length, args.length),
                                 sample_num=args.sample_num,
                                 nerf=model,
                                 device=device)
