@@ -6,3 +6,5 @@ runs/*
 data/*
 renders/*
 checkpoints/*
+.vscode/*
+.idea/*

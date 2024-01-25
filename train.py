@@ -20,7 +20,7 @@ def parse_args(debug=False):
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--data', type=str, default='data/lego',
                             help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
-        parser.add_argument('-c', '--ckpt', type=str, default='debug',
+        parser.add_argument('-c', '--ckpt', type=str, default='debug3',
                             help='Name of checkpoint to save to. Defaults to timestamp.')
         parser.add_argument('-e', '--epoch', type=int, default=2)
         parser.add_argument('-b', '--batch_size', type=int, default=16384)
@@ -28,7 +28,7 @@ def parse_args(debug=False):
                             help='Parameter L in positional encoding for xyz.')
         parser.add_argument('--dir_L', type=int, default=4, 
                             help='Parameter L in positional encoding for direction.')
-        parser.add_argument('-s', '--sample_num', type=int, default=5, 
+        parser.add_argument('-s', '--sample_num', type=int, default=50, 
                             help='How many points to sample on each ray.')
         parser.add_argument('-t', '--test_every', type=int, default=1, 
                             help='Performs testing after we\'ve trained for this many epochs.')
