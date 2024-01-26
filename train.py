@@ -21,7 +21,7 @@ def parse_args(debug=False):
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                             help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
-        parser.add_argument('-c', '--ckpt', type=str, default='debug3',
+        parser.add_argument('-c', '--ckpt', type=str, default='debug4',
                             help='Name of checkpoint to save to. Defaults to timestamp.')
         parser.add_argument('-e', '--epoch', type=int, default=2)
         parser.add_argument('-b', '--batch_size', type=int, default=16384)
@@ -73,7 +73,7 @@ def parse_args(debug=False):
 
 
 def train() -> None:
-    debug = False
+    debug = True
     
     args = parse_args(debug)
     
