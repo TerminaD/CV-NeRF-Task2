@@ -6,6 +6,7 @@ from typing import Tuple
 from einops import rearrange, repeat
 import torch
 
+
 def render_rays(rays: torch.Tensor,
                 sample_num: int,
                 nerf: NeRF,
@@ -67,13 +68,12 @@ def render_rays(rays: torch.Tensor,
     sigmas = result[:, 3:4]
     sigmas = rearrange(sigmas, '(ray sample) 1 -> ray sample', 
                        ray=ray_num, sample=sample_num)
-    clipped_sigmas = torch.relu(sigmas)     # Clip sigmas as it should be non-negative
 
     # Do neural rendering
     deltas = torch.diff(depths, dim=1)
     deltas = torch.cat((deltas, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
     
-    exps = torch.exp(-clipped_sigmas*deltas)
+    exps = torch.exp(-sigmas*deltas)
     
     Ts = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps), dim=1), dim=1)[:, :-1]
     

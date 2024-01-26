@@ -7,7 +7,6 @@ import os
 import argparse
 
 from tqdm import tqdm
-from einops import rearrange
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -27,6 +26,8 @@ def test_all() -> None:
                         help='Parameter L in positional encoding for direction.')
     parser.add_argument('-s', '--sample_num', type=int, default=50, 
                         help='How many points to sample on each ray.')
+    parser.add_argument('-l', '--length', type=int, default=200,
+                            help='Length of images. Currently only support square images.')
     args = parser.parse_args()
         
     if torch.cuda.is_available():
