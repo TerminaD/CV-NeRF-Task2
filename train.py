@@ -132,6 +132,7 @@ def train() -> None:
         # Perform testing periodically
         if args.test_in_training and e % args.test_every == 0:
             with torch.no_grad():
+                print("Testing...")
                 sample = testset[0]
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
@@ -140,8 +141,6 @@ def train() -> None:
                                         nerf=model,
                                         device=device)
                 gt_img = sample['rgbs'].reshape(args.length, args.length, 3).to(device)
-                print(gt_img)
-                print(pred_img)
                 
                 loss = criterion(gt_img, pred_img)
                 psnr = psnr_func(gt_img, pred_img)

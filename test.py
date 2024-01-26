@@ -44,7 +44,7 @@ def test_all() -> None:
                              img_wh=(args.length, args.length))
     
     model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
-    model.load_state_dict(torch.load(args.ckpt, map_location=device))
+    model.load_state_dict(torch.load(f'checkpoints/{args.ckpt}/final.pth', map_location=device))
     
     criterion = nn.MSELoss()
     
