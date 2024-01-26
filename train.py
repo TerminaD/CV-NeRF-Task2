@@ -2,6 +2,7 @@ from models.nerf import NeRF
 from models.render import render_rays, render_image
 from utils.dataset import BlenderDataset
 from utils.psnr import psnr_func
+from utils.loss import NeRFMSELoss
 
 import os
 import argparse
@@ -110,7 +111,7 @@ def train() -> None:
     
     all_params = list(model_coarse.parameters()) + list(model_fine.parameters())
     optimizer = torch.optim.Adam(all_params, lr=args.lr)
-    criterion = nn.MSELoss()
+    criterion = NeRFMSELoss()
     
     os.makedirs(f'checkpoints/{args.ckpt}/coarse', exist_ok=True)
     os.makedirs(f'checkpoints/{args.ckpt}/fine', exist_ok=True)
@@ -126,14 +127,14 @@ def train() -> None:
             
             optimizer.zero_grad()
             
-            pred_rgbs = render_rays(rays,
-                                    args.sample_num_coarse,
-                                    args.sample_num_fine,
-                                    model_coarse,
-                                    model_fine,
-                                    device=device)
+            pred_rgbs_coarse, pred_rgbs_fine = render_rays(rays,
+                                                           args.sample_num_coarse,
+                                                           args.sample_num_fine,
+                                                           model_coarse,
+                                                           model_fine,
+                                                           device=device)
             
-            loss = criterion(gt_rgbs, pred_rgbs)
+            loss = criterion(gt_rgbs, pred_rgbs_coarse, pred_rgbs_fine)
             loss.backward()
             cum_loss += loss
             

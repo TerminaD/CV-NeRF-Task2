@@ -59,7 +59,7 @@ def render_rays(rays: torch.Tensor,
                 sample_num_fine: int,
                 nerf_coarse: NeRF,
                 nerf_fine: NeRF,
-                device) -> torch.Tensor:
+                device):
     """
     Render a number of rays.
     
@@ -110,17 +110,32 @@ def render_rays(rays: torch.Tensor,
     xyz_encoder = PositionalEncoding(xyz_L)
     xyz_encoded_coarse = xyz_encoder(xyzs_coarse)	# (ray_num * sample_num_coarse) * (6 * xyz_L)
     
+    dir_encoder = PositionalEncoding(dir_L)
+    dir_encoded_base = dir_encoder(rays_d)
+    dir_encoded_coarse = torch.repeat_interleave(dir_encoded_base, sample_num_coarse, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
+    
+    xyz_dir_encoded_coarse = torch.cat((xyz_encoded_coarse, dir_encoded_coarse), dim=1)
+    
     # Feed into NeRF
-    sigmas_coarse = nerf_coarse(xyz_encoded_coarse, sigma_only=True)
+    results_coarse = nerf_coarse(xyz_dir_encoded_coarse)
+    
+    # Unpack results
+    rgbs_coarse = results_coarse[:, :3]
+    rgbs_coarse = rearrange(rgbs_coarse, '(ray sample) rgb -> ray sample rgb', 
+                            ray=ray_num, sample=sample_num_coarse)
+    sigmas_coarse = results_coarse[:, 3:4]
     sigmas_coarse = rearrange(sigmas_coarse, '(ray sample) 1 -> ray sample', 
                               ray=ray_num, sample=sample_num_coarse)
 
-    # Sample finely
+    # Sample finely & render coarse image
     exps_coarse = torch.exp(-sigmas_coarse*deltas_coarse)
     
     Ts_coarse = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_coarse), dim=1), dim=1)[:, :-1]
     
     weights_coarse = Ts_coarse * (1 - exps_coarse)
+    
+    point_rgb_coarse = repeat(weights_coarse, 'ray sample -> ray sample 3') * rgbs_coarse
+    pixel_rgb_coarse = torch.sum(point_rgb_coarse, dim=1)
     
     depths_mid_coarse = 0.5 * (depths_coarse[: ,:-1] + depths_coarse[: ,1:])
     
@@ -136,8 +151,7 @@ def render_rays(rays: torch.Tensor,
     xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     xyzs_encoded_all = xyz_encoder(xyzs_all)
     
-    dir_encoder = PositionalEncoding(dir_L)
-    dir_encoded_all = torch.repeat_interleave(dir_encoder(rays_d), sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
+    dir_encoded_all = torch.repeat_interleave(dir_encoded_base, sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
     
     xyz_dir_encoded_all = torch.cat((xyzs_encoded_all, dir_encoded_all), dim=1)
     
@@ -159,10 +173,10 @@ def render_rays(rays: torch.Tensor,
     
     Ts_all = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_all), dim=1), dim=1)[:, :-1]
     
-    point_rgb = repeat(Ts_all * (1 - exps_all), 'ray sample -> ray sample 3') * rgbs_all
-    pixel_rgb = torch.sum(point_rgb, dim=1)
+    point_rgb_all = repeat(Ts_all * (1 - exps_all), 'ray sample -> ray sample 3') * rgbs_all
+    pixel_rgb_all = torch.sum(point_rgb_all, dim=1)
     
-    return pixel_rgb
+    return pixel_rgb_coarse, pixel_rgb_all
     
     
 @torch.no_grad
@@ -200,12 +214,12 @@ def render_image(rays: torch.Tensor,
     
     rgb_batches = []
     for ray_batch in batches:
-        rgb_batch = render_rays(ray_batch, 
-                                sample_num_coarse, 
-                                sample_num_fine,
-                                nerf_coarse,
-                                nerf_fine,
-                                device)
+        _, rgb_batch = render_rays(ray_batch, 
+                                   sample_num_coarse, 
+                                   sample_num_fine,
+                                   nerf_coarse,
+                                   nerf_fine,
+                                   device)
         rgb_batches.append(rgb_batch)
     last_rgb_batch = rgb_batches.pop()
     rgb_batches = torch.cat(rgb_batches, dim=0)
