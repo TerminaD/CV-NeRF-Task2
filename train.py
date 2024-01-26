@@ -73,7 +73,7 @@ def parse_args(debug=False):
 
 
 def train() -> None:
-    debug = True
+    debug = False
     
     args = parse_args(debug)
     
@@ -111,7 +111,8 @@ def train() -> None:
     
     all_params = list(model_coarse.parameters()) + list(model_fine.parameters())
     optimizer = torch.optim.Adam(all_params, lr=args.lr)
-    criterion = NeRFMSELoss()
+    nerf_criterion = NeRFMSELoss()
+    mse_criterion = nn.MSELoss()
     
     os.makedirs(f'checkpoints/{args.ckpt}/coarse', exist_ok=True)
     os.makedirs(f'checkpoints/{args.ckpt}/fine', exist_ok=True)
@@ -134,7 +135,7 @@ def train() -> None:
                                                            model_fine,
                                                            device=device)
             
-            loss = criterion(gt_rgbs, pred_rgbs_coarse, pred_rgbs_fine)
+            loss = nerf_criterion(gt_rgbs, pred_rgbs_coarse, pred_rgbs_fine)
             loss.backward()
             cum_loss += loss
             
@@ -159,10 +160,10 @@ def train() -> None:
                                         device=device)
                 gt_img = sample['rgbs'].reshape(args.length, args.length, 3).to(device)
                 
-                loss = criterion(gt_img, pred_img)
+                loss = mse_criterion(gt_img, pred_img)
                 psnr = psnr_func(gt_img, pred_img)
                 
-                writer.add_scalar('Loss/test', loss, e)
+                writer.add_scalar('MSE/test', loss, e)
                 writer.add_scalar('PSNR/test', psnr, e)
                 
                 torch.save(model_coarse.state_dict(), f"checkpoints/{args.ckpt}/coarse/{e}.pth")
