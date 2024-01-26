@@ -131,7 +131,7 @@ def train() -> None:
                                     args.sample_num_fine,
                                     model_coarse,
                                     model_fine,
-                                    device)
+                                    device=device)
             
             loss = criterion(gt_rgbs, pred_rgbs)
             loss.backward()
