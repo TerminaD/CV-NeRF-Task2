@@ -110,24 +110,12 @@ def render_rays(rays: torch.Tensor,
     xyz_encoder = PositionalEncoding(xyz_L)
     xyz_encoded_coarse = xyz_encoder(xyzs_coarse)	# (ray_num * sample_num_coarse) * (6 * xyz_L)
     
-    dir_encoder = PositionalEncoding(dir_L)
-    dir_encoded = dir_encoder(rays_d) # ray_num * (6 * dir_L)
-    dir_encoded_coarse = torch.repeat_interleave(dir_encoded, sample_num_coarse, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
-    
-    xyz_dir_encoded_coarse = torch.cat((xyz_encoded_coarse, dir_encoded_coarse), dim=1)
-    
     # Feed into NeRF
-    result_coarse = nerf_coarse(xyz_dir_encoded_coarse)
-    
-    # Unpack results
-    rgbs_coarse = result_coarse[:, :3]
-    rgbs_coarse = rearrange(rgbs_coarse, '(ray sample) rgb -> ray sample rgb', 
-                            ray=ray_num, sample=sample_num_coarse)
-    sigmas_coarse = result_coarse[:, 3:4]
+    sigmas_coarse = nerf_coarse(xyz_encoded_coarse, sigma_only=True)
     sigmas_coarse = rearrange(sigmas_coarse, '(ray sample) 1 -> ray sample', 
                               ray=ray_num, sample=sample_num_coarse)
 
-    # Do part of neural rendering to sample again
+    # Sample finely
     exps_coarse = torch.exp(-sigmas_coarse*deltas_coarse)
     
     Ts_coarse = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_coarse), dim=1), dim=1)[:, :-1]
@@ -141,34 +129,27 @@ def render_rays(rays: torch.Tensor,
                              sample_num_fine,
                              det=False)
     
-    xyzs_fine = rays_o + rays_d * rearrange(depths_fine, 'n1 n2 -> n2 n1 1').to(device)
-    xyzs_fine = rearrange(xyzs_fine, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_fine * 3
-    xyzs_fine = rearrange(xyzs_fine, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    depths_all, _ = torch.sort(torch.cat((depths_coarse, depths_fine), dim=1), dim=1)
     
-    # Encode fine xyz & dir, prepare for NeRF again
-    xyzs_encoded_fine = xyz_encoder(xyzs_fine)
+    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n2 n1 1').to(device)
+    xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
+    xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    xyzs_encoded_all = xyz_encoder(xyzs_all)
     
-    dir_encoded_fine = torch.repeat_interleave(dir_encoded, sample_num_fine, dim=0) # (ray_num * sample_num_fine) * (6 * dir_L)
+    dir_encoder = PositionalEncoding(dir_L)
+    dir_encoded_all = torch.repeat_interleave(dir_encoder(rays_d), sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
     
-    xyz_dir_encoded_fine = torch.cat((xyzs_encoded_fine, dir_encoded_fine), dim=1)
+    xyz_dir_encoded_all = torch.cat((xyzs_encoded_all, dir_encoded_all), dim=1)
     
-    result_fine = nerf_fine(xyz_dir_encoded_fine)
+    results_all = nerf_fine(xyz_dir_encoded_all, sigma_only=False)
     
     # Unpack fine results
-    rgbs_fine = result_fine[:, :3]
-    rgbs_fine = rearrange(rgbs_fine, '(ray sample) rgb -> ray sample rgb', 
-                          ray=ray_num, sample=sample_num_fine)
-    sigmas_fine = result_fine[:, 3:4]
-    sigmas_fine = rearrange(sigmas_fine, '(ray sample) 1 -> ray sample', 
-                            ray=ray_num, sample=sample_num_fine)
-    
-    # Concat coarse and fine results and sort
-    depths_all = torch.cat((depths_coarse, depths_fine), dim=1)
-    depths_all, indices = torch.sort(depths_all, dim=1)
-    
-    rgbs_all = torch.cat((rgbs_coarse, rgbs_fine), dim=1)[indices]
-    
-    sigmas_all = torch.cat((sigmas_coarse, sigmas_fine), dim=1)[indices]
+    rgbs_all = results_all[:, :3]
+    rgbs_all = rearrange(rgbs_all, '(ray sample) rgb -> ray sample rgb', 
+                         ray=ray_num, sample=sample_num_coarse+sample_num_fine)
+    sigmas_all = results_all[:, 3:4]
+    sigmas_all = rearrange(sigmas_all, '(ray sample) 1 -> ray sample', 
+                           ray=ray_num, sample=sample_num_coarse+sample_num_fine)
     
     # Re-do neural rendering
     deltas_all = torch.diff(depths_all, dim=1)
