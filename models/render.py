@@ -146,10 +146,10 @@ def render_rays(rays: torch.Tensor,
     # Unpack fine results
     rgbs_all = results_all[:, :3]
     rgbs_all = rearrange(rgbs_all, '(ray sample) rgb -> ray sample rgb', 
-                          ray=ray_num, sample=sample_num_coarse+sample_num_fine)
+                         ray=ray_num, sample=sample_num_coarse+sample_num_fine)
     sigmas_all = results_all[:, 3:4]
     sigmas_all = rearrange(sigmas_all, '(ray sample) 1 -> ray sample', 
-                            ray=ray_num, sample=sample_num_coarse+sample_num_fine)
+                           ray=ray_num, sample=sample_num_coarse+sample_num_fine)
     
     # Re-do neural rendering
     deltas_all = torch.diff(depths_all, dim=1)
