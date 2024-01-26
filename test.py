@@ -24,10 +24,12 @@ def test_all() -> None:
                         help='Parameter L in positional encoding for xyz.')
     parser.add_argument('--dir_L', type=int, default=4, 
                         help='Parameter L in positional encoding for direction.')
-    parser.add_argument('-s', '--sample_num', type=int, default=50, 
-                        help='How many points to sample on each ray.')
+    parser.add_argument('--sample_num_coarse', type=int, default=64, 
+                        help='How many points to sample on each ray for coarse model.')
+    parser.add_argument('--sample_num_fine', type=int, default=128, 
+                        help='How many points to sample on each ray for fine model.')
     parser.add_argument('-l', '--length', type=int, default=200,
-                            help='Length of images. Currently only support square images.')
+                        help='Length of images. Currently only support square images.')
     args = parser.parse_args()
         
     if torch.cuda.is_available():
@@ -43,8 +45,10 @@ def test_all() -> None:
                              split='test', 
                              img_wh=(args.length, args.length))
     
-    model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
-    model.load_state_dict(torch.load(f'checkpoints/{args.ckpt}/final.pth', map_location=device))
+    model_coarse = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
+    model_fine = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
+    model_coarse.load_state_dict(torch.load(f'checkpoints/{args.ckpt}/coarse/final.pth', map_location=device))
+    model_fine.load_state_dict(torch.load(f'checkpoints/{args.ckpt}/fine/final.pth', map_location=device))
     
     criterion = nn.MSELoss()
     
@@ -61,8 +65,10 @@ def test_all() -> None:
         pred_img = render_image(rays=rays,
                                 batch_size=args.batch_size,
                                 img_shape=(args.length, args.length),
-                                sample_num=args.sample_num,
-                                nerf=model,
+                                sample_num_coarse=args.sample_num_coarse,
+                                sample_num_fine=args.sample_num_fine,
+                                nerf_coarse=model_coarse,
+                                nerf_fine=model_fine,
                                 device=device)
         
         loss = criterion(gt_img, pred_img)

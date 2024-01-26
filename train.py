@@ -28,9 +28,11 @@ def parse_args(debug=False):
                             help='Parameter L in positional encoding for xyz.')
         parser.add_argument('--dir_L', type=int, default=4, 
                             help='Parameter L in positional encoding for direction.')
-        parser.add_argument('-s', '--sample_num', type=int, default=50, 
-                            help='How many points to sample on each ray.')
-        parser.add_argument('-t', '--test_every', type=int, default=1, 
+        parser.add_argument('--sample_num_coarse', type=int, default=64, 
+                            help='How many points to sample on each ray for coarse model.')
+        parser.add_argument('--sample_num_fine', type=int, default=128, 
+                            help='How many points to sample on each ray for fine model.')
+        parser.add_argument('-t', '--test_every', type=int, default=1,
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', default=True,
                             help='Perform testing during training')
@@ -52,8 +54,10 @@ def parse_args(debug=False):
                             help='Parameter L in positional encoding for xyz.')
         parser.add_argument('--dir_L', type=int, default=4, 
                             help='Parameter L in positional encoding for direction.')
-        parser.add_argument('-s', '--sample_num', type=int, default=50, 
-                            help='How many points to sample on each ray.')
+        parser.add_argument('--sample_num_coarse', type=int, default=64, 
+                            help='How many points to sample on each ray for coarse model.')
+        parser.add_argument('--sample_num_fine', type=int, default=128, 
+                            help='How many points to sample on each ray for fine model.')
         parser.add_argument('-t', '--test_every', type=int, default=5, 
                             help='Performs testing after we\'ve trained for this many epochs.')
         parser.add_argument('--test_in_training', action='store_true',
@@ -99,12 +103,17 @@ def train() -> None:
                              split='test', 
                              img_wh=(args.length, args.length))
     
-    model = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
-    model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    model_coarse = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
+    model_fine = NeRF(in_channels_xyz=6*args.xyz_L, in_channels_dir=6*args.dir_L)
+    model_coarse.to(device)
+    model_fine.to(device)
+    
+    all_params = list(model_coarse.parameters()) + list(model_fine.parameters())
+    optimizer = torch.optim.Adam(all_params, lr=args.lr)
     criterion = nn.MSELoss()
     
-    os.makedirs(f'checkpoints/{args.ckpt}', exist_ok=True)
+    os.makedirs(f'checkpoints/{args.ckpt}/coarse', exist_ok=True)
+    os.makedirs(f'checkpoints/{args.ckpt}/fine', exist_ok=True)
     os.makedirs(f'renders/{args.ckpt}/train', exist_ok=True)
     
     for e in range(args.epoch):
@@ -117,7 +126,12 @@ def train() -> None:
             
             optimizer.zero_grad()
             
-            pred_rgbs = render_rays(rays, args.sample_num, model, device)
+            pred_rgbs = render_rays(rays,
+                                    args.sample_num_coarse,
+                                    args.sample_num_fine,
+                                    model_coarse,
+                                    model_fine,
+                                    device)
             
             loss = criterion(gt_rgbs, pred_rgbs)
             loss.backward()
@@ -137,8 +151,10 @@ def train() -> None:
                 pred_img = render_image(rays=sample['rays'],
                                         batch_size=args.batch_size,
                                         img_shape=(args.length, args.length),
-                                        sample_num=args.sample_num,
-                                        nerf=model,
+                                        sample_num_coarse=args.sample_num_coarse,
+                                        sample_num_fine=args.sample_num_fine,
+                                        nerf_coarse=model_coarse,
+                                        nerf_fine=model_fine,
                                         device=device)
                 gt_img = sample['rgbs'].reshape(args.length, args.length, 3).to(device)
                 
@@ -148,10 +164,12 @@ def train() -> None:
                 writer.add_scalar('Loss/test', loss, e)
                 writer.add_scalar('PSNR/test', psnr, e)
                 
-                torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/{e}.pth")
+                torch.save(model_coarse.state_dict(), f"checkpoints/{args.ckpt}/coarse/{e}.pth")
+                torch.save(model_fine.state_dict(), f"checkpoints/{args.ckpt}/fine/{e}.pth")
                 plt.imsave(f'renders/{args.ckpt}/train/{e}.png', torch.clip(pred_img, 0, 1).cpu().numpy())
     
-    torch.save(model.state_dict(), f"checkpoints/{args.ckpt}/final.pth")           
+    torch.save(model_coarse.state_dict(), f"checkpoints/{args.ckpt}/coarse/final.pth")
+    torch.save(model_fine.state_dict(), f"checkpoints/{args.ckpt}/fine/final.pth") 
                 
     writer.flush()
     
