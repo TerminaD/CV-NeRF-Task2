@@ -53,7 +53,6 @@ def render_rays(rays: torch.Tensor,
     
     dir_encoder = PositionalEncoding(dir_L)
     dir_encoded = dir_encoder(rays_d) # ray_num * (6 * dir_L)
-    
     dir_encoded = torch.repeat_interleave(dir_encoded, sample_num, dim=0) # (ray_num * sample_num) * (6 * dir_L)
     
     xyz_dir_encoded = torch.cat((xyz_encoded, dir_encoded), dim=1)

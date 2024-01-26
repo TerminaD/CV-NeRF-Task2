@@ -36,6 +36,8 @@ def parse_args(debug=False):
                             help='Perform testing during training')
         parser.add_argument('--lr', type=float, default=1e-3,
                             help='Learning rate')
+        parser.add_argument('-l', '--length', type=int, default=200,
+                            help='Length of images. Currently only support square images.')
         args = parser.parse_args()
         
     else:
@@ -66,7 +68,7 @@ def parse_args(debug=False):
 
 
 def train() -> None:
-    debug = True
+    debug = False
     
     args = parse_args(debug)
     
