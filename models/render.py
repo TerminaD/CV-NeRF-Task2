@@ -166,9 +166,10 @@ def render_rays(rays: torch.Tensor,
     depths_all = torch.cat((depths_coarse, depths_fine), dim=1)
     depths_all, indices = torch.sort(depths_all, dim=1)
     
-    rgbs_all = torch.cat((rgbs_coarse, rgbs_fine), dim=1)[indices]
+    rgbs_all = torch.gather(torch.cat((rgbs_coarse, rgbs_fine), dim=1), 1, 
+                            repeat(indices, 'a b -> a b 3'))
     
-    sigmas_all = torch.cat((sigmas_coarse, sigmas_fine), dim=1)[indices]
+    sigmas_all = torch.gather(torch.cat((sigmas_coarse, sigmas_fine), dim=1), 1, indices)
     
     # Re-do neural rendering
     deltas_all = torch.diff(depths_all, dim=1)
