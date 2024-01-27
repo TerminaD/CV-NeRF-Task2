@@ -16,66 +16,35 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 
-def parse_args(debug=False):
-    if debug:
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-d', '--data', type=str, default='data/lego_small',
-                            help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
-        parser.add_argument('-c', '--ckpt', type=str, default='debug6',
-                            help='Name of checkpoint to save to. Defaults to timestamp.')
-        parser.add_argument('-e', '--epoch', type=int, default=2)
-        parser.add_argument('-b', '--batch_size', type=int, default=4096)
-        parser.add_argument('--xyz_L', type=int, default=10, 
-                            help='Parameter L in positional encoding for xyz.')
-        parser.add_argument('--dir_L', type=int, default=4, 
-                            help='Parameter L in positional encoding for direction.')
-        parser.add_argument('--sample_num_coarse', type=int, default=64, 
-                            help='How many points to sample on each ray for coarse model.')
-        parser.add_argument('--sample_num_fine', type=int, default=128, 
-                            help='How many points to sample on each ray for fine model.')
-        parser.add_argument('-t', '--test_every', type=int, default=1,
-                            help='Performs testing after we\'ve trained for this many epochs.')
-        parser.add_argument('--test_in_training', default=True,
-                            help='Perform testing during training')
-        parser.add_argument('--lr', type=float, default=1e-3,
-                            help='Learning rate')
-        parser.add_argument('-l', '--length', type=int, default=200,
-                            help='Length of images. Currently only support square images.')
-        args = parser.parse_args()
-        
-    else:
-        parser = argparse.ArgumentParser()
-        parser.add_argument('-d', '--data', type=str, default='data/lego_small',
-                            help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
-        parser.add_argument('-c', '--ckpt', type=str, default='debug',
-                            help='Name of checkpoint to save to. Defaults to timestamp.')
-        parser.add_argument('-e', '--epoch', type=int, default=100)
-        parser.add_argument('-b', '--batch_size', type=int, default=16384)
-        parser.add_argument('--xyz_L', type=int, default=10, 
-                            help='Parameter L in positional encoding for xyz.')
-        parser.add_argument('--dir_L', type=int, default=4, 
-                            help='Parameter L in positional encoding for direction.')
-        parser.add_argument('--sample_num_coarse', type=int, default=64, 
-                            help='How many points to sample on each ray for coarse model.')
-        parser.add_argument('--sample_num_fine', type=int, default=128, 
-                            help='How many points to sample on each ray for fine model.')
-        parser.add_argument('-t', '--test_every', type=int, default=5, 
-                            help='Performs testing after we\'ve trained for this many epochs.')
-        parser.add_argument('--test_in_training', action='store_true',
-                            help='Perform testing during training')
-        parser.add_argument('--lr', type=float, default=1e-3,
-                            help='Learning rate')
-        parser.add_argument('-l', '--length', type=int, default=200,
-                            help='Length of images. Currently only support square images.')
-        args = parser.parse_args()
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--data', type=str, default='data/lego_small',
+                        help='Path to collection of images to fit NeRF on. Should follow COLMAP format.')
+    parser.add_argument('-c', '--ckpt', type=str, default='debug',
+                        help='Name of checkpoint to save to. Defaults to timestamp.')
+    parser.add_argument('-e', '--epoch', type=int, default=100)
+    parser.add_argument('-b', '--batch_size', type=int, default=16384)
+    parser.add_argument('--xyz_L', type=int, default=10, 
+                        help='Parameter L in positional encoding for xyz.')
+    parser.add_argument('--dir_L', type=int, default=4, 
+                        help='Parameter L in positional encoding for direction.')
+    parser.add_argument('--sample_num_coarse', type=int, default=64, 
+                        help='How many points to sample on each ray for coarse model.')
+    parser.add_argument('--sample_num_fine', type=int, default=128, 
+                        help='How many points to sample on each ray for fine model.')
+    parser.add_argument('-t', '--test_every', type=int, default=5, 
+                        help='Performs testing after we\'ve trained for this many epochs.')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='Learning rate')
+    parser.add_argument('-l', '--length', type=int, default=200,
+                        help='Length of images. Currently only support square images.')
+    args = parser.parse_args()
         
     return args
 
 
 def train() -> None:
-    debug = False
-    
-    args = parse_args(debug)
+    args = parse_args()
     
     if not args.ckpt:
         now = datetime.datetime.now()
@@ -146,7 +115,7 @@ def train() -> None:
         print(cum_loss.item())
         
         # Perform testing periodically
-        if args.test_in_training and e % args.test_every == 0:
+        if e % args.test_every == 0:
             with torch.no_grad():
                 print("Testing...")
                 sample = testset[0]

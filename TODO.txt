@@ -1,4 +1,0 @@
-- Normalize pixel coordinates to -1 ~ 1 -> Probably not the problem
-- Set batch size to 8192/4096 -> WIP
-- Implement hierarchal NeRFs -> WIP
-- Check if training rays cover all images -> Not the problem

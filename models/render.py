@@ -96,7 +96,9 @@ def render_rays(rays: torch.Tensor,
     depths_coarse = rands_coarse*bin_size_coarse + bin_edges_coarse
     
     # Sample coarsely along ray
-    xyzs_coarse = rays_o + rays_d * rearrange(depths_coarse, 'n1 n2 -> n1 n2 1')
+    xyzs_coarse = rays_o + rays_d * rearrange(depths_coarse, 'n1 n2 -> n2 n1 1').to(device)
+    xyzs_coarse = rearrange(xyzs_coarse, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
+    xyzs_coarse = rearrange(xyzs_coarse, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     
     deltas_coarse = torch.diff(depths_coarse, dim=1)
     deltas_coarse = torch.cat((deltas_coarse, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
@@ -144,7 +146,9 @@ def render_rays(rays: torch.Tensor,
     
     depths_all, _ = torch.sort(torch.cat((depths_coarse, depths_fine), dim=1), dim=1)
     
-    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n1 n2 1')
+    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n2 n1 1').to(device)
+    xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
+    xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     xyzs_encoded_all = xyz_encoder(xyzs_all)
     
     dir_encoded_all = torch.repeat_interleave(dir_encoded_base, sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
@@ -173,6 +177,95 @@ def render_rays(rays: torch.Tensor,
     pixel_rgb_all = torch.sum(point_rgb_all, dim=1)
     
     return pixel_rgb_coarse, pixel_rgb_all
+
+
+@torch.no_grad
+def render_depth(rays: torch.Tensor,
+                 sample_num_coarse: int,
+                 sample_num_fine: int,
+                 nerf_coarse: NeRF,
+                 nerf_fine: NeRF,
+                 threshold,
+                 device):
+    
+    assert nerf_coarse.in_channels_xyz == nerf_fine.in_channels_xyz
+    assert nerf_coarse.in_channels_dir == nerf_fine.in_channels_dir
+    
+    rays.to(device)
+    nerf_coarse.to(device)
+    nerf_fine.to(device)
+    
+    # Get coarse depths
+    ray_num = rays.shape[0]
+    rays_o = rays[:, :3].to(device)
+    rays_d = rays[:, 3:6].to(device)
+    near = rays[0][6]
+    far = rays[0][7]
+    
+    bin_size_coarse = (far - near) / sample_num_coarse
+    bin_edges_coarse = torch.linspace(near, far-bin_size_coarse, sample_num_coarse).to(device)
+    bin_edges_coarse = bin_edges_coarse.repeat(ray_num, 1)
+    rands_coarse = torch.rand(ray_num, sample_num_coarse).to(device)
+    
+    depths_coarse = rands_coarse*bin_size_coarse + bin_edges_coarse
+    
+    # Sample coarsely along ray
+    xyzs_coarse = rays_o + rays_d * rearrange(depths_coarse, 'n1 n2 -> n2 n1 1').to(device)
+    xyzs_coarse = rearrange(xyzs_coarse, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
+    xyzs_coarse = rearrange(xyzs_coarse, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    
+    deltas_coarse = torch.diff(depths_coarse, dim=1)
+    deltas_coarse = torch.cat((deltas_coarse, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
+    
+    # Encode xyz and direction
+    xyz_L = int(nerf_coarse.in_channels_xyz / 6)
+    
+    xyz_encoder = PositionalEncoding(xyz_L)
+    xyz_encoded_coarse = xyz_encoder(xyzs_coarse)	# (ray_num * sample_num_coarse) * (6 * xyz_L)
+    
+    # Feed into NeRF
+    sigmas_coarse = nerf_coarse(xyz_encoded_coarse, sigma_only=True)
+    sigmas_coarse = rearrange(sigmas_coarse, '(ray sample) 1 -> ray sample', 
+                              ray=ray_num, sample=sample_num_coarse)
+
+    # Sample finely & render coarse image
+    exps_coarse = torch.exp(-sigmas_coarse*deltas_coarse)
+    
+    Ts_coarse = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_coarse), dim=1), dim=1)[:, :-1]
+    
+    weights_coarse = Ts_coarse * (1 - exps_coarse)
+    
+    depths_mid_coarse = 0.5 * (depths_coarse[: ,:-1] + depths_coarse[: ,1:])
+    
+    depths_fine = sample_pdf(depths_mid_coarse, 
+                             weights_coarse[:, 1:-1].detach(),
+                             sample_num_fine,
+                             det=False)
+    
+    depths_all, _ = torch.sort(torch.cat((depths_coarse, depths_fine), dim=1), dim=1)
+    
+    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n2 n1 1').to(device)
+    xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
+    xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    xyzs_encoded_all = xyz_encoder(xyzs_all)
+    
+    sigmas_all = nerf_fine(xyzs_encoded_all, sigma_only=True)
+    sigmas_all = rearrange(sigmas_all, '(ray sample) 1 -> ray sample', 
+                           ray=ray_num, sample=sample_num_coarse+sample_num_fine)
+    
+    # Re-do neural rendering
+    deltas_all = torch.diff(depths_all, dim=1)
+    deltas_all = torch.cat((deltas_all, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
+    
+    exps_all = torch.exp(-sigmas_all*deltas_all)
+    
+    Ts_all = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_all), dim=1), dim=1)[:, :-1]
+    
+    depth_indices = torch.sum(Ts_all > threshold, dim=1)-1
+    
+    depths = torch.gather(depths_all, 1, depth_indices[:, None])
+    
+    return depths
     
     
 @torch.no_grad
@@ -183,7 +276,9 @@ def render_image(rays: torch.Tensor,
                  sample_num_fine: int,
                  nerf_coarse: NeRF,
                  nerf_fine: NeRF,
-                 device) -> torch.Tensor:
+                 threshold,
+                 depth_only=False,
+                 device=None) -> torch.Tensor:
     """
     Renders an image.
     This function should not be used for training purposes, as it does not
@@ -208,19 +303,39 @@ def render_image(rays: torch.Tensor,
     
     batches = torch.split(rays, batch_size)
     
-    rgb_batches = []
-    for ray_batch in batches:
-        _, rgb_batch = render_rays(ray_batch, 
-                                   sample_num_coarse, 
-                                   sample_num_fine,
-                                   nerf_coarse,
-                                   nerf_fine,
-                                   device)
-        rgb_batches.append(rgb_batch)
-    last_rgb_batch = rgb_batches.pop()
-    rgb_batches = torch.cat(rgb_batches, dim=0)
-    rgb_batches = torch.cat((rgb_batches, last_rgb_batch), dim=0)
+    if depth_only:
+        depth_batches = []
+        for ray_batch in batches:
+            depth_batch = render_depth(ray_batch,
+                                       sample_num_coarse, 
+                                       sample_num_fine,
+                                       nerf_coarse,
+                                       nerf_fine,
+                                       threshold,
+                                       device)
+            depth_batches.append(depth_batch)
+        last_depth_batch = depth_batches.pop()
+        depth_batches = torch.cat(depth_batches, dim=0)
+        depth_batches = torch.cat((depth_batches, last_depth_batch), dim=0)
+        
+        depth_batches = depth_batches.reshape(img_shape[0], img_shape[1])
+        
+        return depth_batches
     
-    rgb_batches = rgb_batches.reshape(img_shape[0], img_shape[1], 3)
-    
-    return rgb_batches
+    else:
+        rgb_batches = []
+        for ray_batch in batches:
+            _, rgb_batch = render_rays(ray_batch, 
+                                       sample_num_coarse, 
+                                       sample_num_fine,
+                                       nerf_coarse,
+                                       nerf_fine,
+                                       device)
+            rgb_batches.append(rgb_batch)
+        last_rgb_batch = rgb_batches.pop()
+        rgb_batches = torch.cat(rgb_batches, dim=0)
+        rgb_batches = torch.cat((rgb_batches, last_rgb_batch), dim=0)
+        
+        rgb_batches = rgb_batches.reshape(img_shape[0], img_shape[1], 3)
+        
+        return rgb_batches
