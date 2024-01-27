@@ -1,7 +1,7 @@
 import os
 import json
 
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -96,9 +96,13 @@ class BlenderDataset(Dataset):
             img = Image.open(os.path.join(self.root_dir, f"{frame['file_path']}.png"))
             img = img.resize(self.img_wh, Image.LANCZOS)
             img = self.transform(img) # (4, H, W)
-            valid_mask = (img[-1]>0).flatten() # (H*W) valid color area
             img = img.view(4, -1).permute(1, 0) # (H*W, 4) RGBA
             img = img[:, :3]*img[:, -1:] + (1-img[:, -1:]) # blend A to RGB
+            
+            depth = Image.open(os.path.join(self.root_dir, f"{frame['file_path']}_depth_0001.png"))
+            depth = ImageOps.grayscale(depth)
+            depth = self.transform(depth).squeeze()
+            assert depth.shape == torch.Size(self.img_wh)
 
             rays_o, rays_d = get_p2w_ray_directions(self.directions, c2w)
 
@@ -109,7 +113,6 @@ class BlenderDataset(Dataset):
 
             sample = {'rays': rays,
                       'rgbs': img,
-                      'c2w': c2w,
-                      'valid_mask': valid_mask}
+                      'depths': depth}
 
         return sample

@@ -13,11 +13,13 @@ import torch.nn as nn
 
         
 @torch.no_grad   
-def test_all() -> None:
+def test_all_depths() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                         help='Path to collection of images to test NeRF on. Should follow COLMAP format.')
-    parser.add_argument('-c', '--ckpt', type=str, required=True,
+    # parser.add_argument('-c', '--ckpt', type=str, required=True,
+    #                     help='Name of checkpoint to load.')
+    parser.add_argument('-c', '--ckpt', type=str, default='cf',
                         help='Name of checkpoint to load.')
     parser.add_argument('-b', '--batch_size', type=int, default=4096)
     parser.add_argument('--xyz_L', type=int, default=10, 
@@ -30,6 +32,8 @@ def test_all() -> None:
                         help='How many points to sample on each ray for fine model.')
     parser.add_argument('-l', '--length', type=int, default=200,
                         help='Length of images. Currently only support square images.')
+    parser.add_argument('-t', '--threshold', type=float, default=0.875,
+                        help='Cut-off value for T.')
     args = parser.parse_args()
         
     if torch.cuda.is_available():
@@ -55,28 +59,37 @@ def test_all() -> None:
     losses = []
     psnrs = []
     
-    os.makedirs(f'renders/{args.ckpt}/test')
+    os.makedirs(f'renders/{args.ckpt}/test_depth', exist_ok=True)
     
     for i in tqdm(range(len(testset))):
         sample = testset[i]
         rays = sample['rays'].to(device)
-        gt_img = torch.reshape(sample['rgbs'], (args.length, args.length, 3)).to(device)
+        gt_depth = torch.reshape(sample['depths'], (args.length, args.length)).to(device)
         
-        pred_img = render_image(rays=rays,
-                                batch_size=args.batch_size,
-                                img_shape=(args.length, args.length),
-                                sample_num_coarse=args.sample_num_coarse,
-                                sample_num_fine=args.sample_num_fine,
-                                nerf_coarse=model_coarse,
-                                nerf_fine=model_fine,
-                                device=device)
+        pred_depth = render_image(rays=rays,
+                                  batch_size=args.batch_size,
+                                  img_shape=(args.length, args.length),
+                                  sample_num_coarse=args.sample_num_coarse,
+                                  sample_num_fine=args.sample_num_fine,
+                                  nerf_coarse=model_coarse,
+                                  nerf_fine=model_fine,
+                                  threshold=args.threshold,
+                                  depth_only=True,
+                                  device=device)
+        # TODO: flip and normalize
         
-        loss = criterion(gt_img, pred_img)
-        psnr = psnr_func(gt_img, pred_img)
+        plt.imshow(gt_depth)
+        plt.show()
+        
+        plt.imshow(pred_depth)
+        plt.show()
+        
+        loss = criterion(gt_depth, pred_depth)
+        psnr = psnr_func(gt_depth, pred_depth)
         losses.append(loss)
         psnrs.append(psnr)
         
-        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', torch.clip(pred_img, 0, 1).cpu().numpy())
+        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', torch.clip(pred_depth, 0, 1).cpu().numpy())
         
     average_loss = sum(losses) / len(losses)
     average_psnr = sum(psnrs) / len (psnrs)
@@ -92,4 +105,4 @@ def test_all() -> None:
         
 
 if __name__ == '__main__':
-    test_all()
+    test_all_depths()
