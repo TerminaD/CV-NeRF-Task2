@@ -96,9 +96,7 @@ def render_rays(rays: torch.Tensor,
     depths_coarse = rands_coarse*bin_size_coarse + bin_edges_coarse
     
     # Sample coarsely along ray
-    xyzs_coarse = rays_o + rays_d * rearrange(depths_coarse, 'n1 n2 -> n2 n1 1').to(device)
-    xyzs_coarse = rearrange(xyzs_coarse, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
-    xyzs_coarse = rearrange(xyzs_coarse, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    xyzs_coarse = rays_o + rays_d * rearrange(depths_coarse, 'n1 n2 -> n1 n2 1')
     
     deltas_coarse = torch.diff(depths_coarse, dim=1)
     deltas_coarse = torch.cat((deltas_coarse, 1e7 * torch.ones((ray_num, 1)).to(device)), dim=1)
@@ -146,9 +144,7 @@ def render_rays(rays: torch.Tensor,
     
     depths_all, _ = torch.sort(torch.cat((depths_coarse, depths_fine), dim=1), dim=1)
     
-    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n2 n1 1').to(device)
-    xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
-    xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n1 n2 1')
     xyzs_encoded_all = xyz_encoder(xyzs_all)
     
     dir_encoded_all = torch.repeat_interleave(dir_encoded_base, sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
