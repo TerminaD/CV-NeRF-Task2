@@ -150,6 +150,7 @@ def render_rays(rays: torch.Tensor,
     xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
     xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
     xyzs_encoded_all = xyz_encoder(xyzs_all/3)
+    xyzs_encoded_all = xyz_encoder(xyzs_all/3)
     
     dir_encoded_all = torch.repeat_interleave(dir_encoded_base, sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
     
@@ -284,7 +285,7 @@ def render_image(rays: torch.Tensor,
                  sample_num_fine: int,
                  nerf_coarse: NeRF,
                  nerf_fine: NeRF,
-                 threshold,
+                 threshold=None,
                  depth_only=False,
                  device=None) -> torch.Tensor:
     """
