@@ -79,7 +79,10 @@ def train() -> None:
     model_fine.to(device)
     
     all_params = list(model_coarse.parameters()) + list(model_fine.parameters())
-    optimizer = torch.optim.Adam(all_params, lr=args.lr)
+    optimizer = torch.optim.AdamW(all_params, lr=args.lr)
+    
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.1 ** (1.0 / 100))     # lr *= 0.1 in first 100 epoch, static after
+    
     nerf_criterion = NeRFMSELoss()
     mse_criterion = nn.MSELoss()
     
@@ -113,6 +116,9 @@ def train() -> None:
         cum_loss /= len(trainloader)
         writer.add_scalar('Loss/train', cum_loss, e)
         print(cum_loss.item())
+        
+        if e < 100:
+            scheduler.step()
         
         # Perform testing periodically
         if e % args.test_every == 0:
