@@ -17,10 +17,10 @@ def test_all_depths() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data', type=str, default='data/lego_small',
                         help='Path to collection of images to test NeRF on. Should follow COLMAP format.')
-    # parser.add_argument('-c', '--ckpt', type=str, required=True,
-    #                     help='Name of checkpoint to load.')
-    parser.add_argument('-c', '--ckpt', type=str, default='cf',
+    parser.add_argument('-c', '--ckpt', type=str, required=True,
                         help='Name of checkpoint to load.')
+    # parser.add_argument('-c', '--ckpt', type=str, default='cf',
+    #                     help='Name of checkpoint to load.')
     parser.add_argument('-b', '--batch_size', type=int, default=4096)
     parser.add_argument('--xyz_L', type=int, default=10, 
                         help='Parameter L in positional encoding for xyz.')
@@ -32,14 +32,14 @@ def test_all_depths() -> None:
                         help='How many points to sample on each ray for fine model.')
     parser.add_argument('-l', '--length', type=int, default=200,
                         help='Length of images. Currently only support square images.')
-    parser.add_argument('-t', '--threshold', type=float, default=0.875,
+    parser.add_argument('-t', '--threshold', type=float, default=0.8,
                         help='Cut-off value for T.')
     args = parser.parse_args()
         
     if torch.cuda.is_available():
         device = 'cuda:0'
-    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        device = 'mps'
+    # elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+    #     device = 'mps'
     else:
         device = 'cpu'
     device = torch.device(device)
@@ -56,17 +56,27 @@ def test_all_depths() -> None:
     
     criterion = nn.MSELoss()
     
-    losses = []
-    psnrs = []
+    c1s_losses = []
+    c2s_losses = []
+    a1s_losses = []
+    a2s_losses = []
     
-    os.makedirs(f'renders/{args.ckpt}/test_depth', exist_ok=True)
+    c1s_psnrs = []
+    c2s_psnrs = []
+    a1s_psnrs = []
+    a2s_psnrs = []
+    
+    os.makedirs(f'renders/{args.ckpt}/test_depth/c1s', exist_ok=True)
+    os.makedirs(f'renders/{args.ckpt}/test_depth/c2s', exist_ok=True)
+    os.makedirs(f'renders/{args.ckpt}/test_depth/a1s', exist_ok=True)
+    os.makedirs(f'renders/{args.ckpt}/test_depth/a2s', exist_ok=True)
     
     for i in tqdm(range(len(testset))):
         sample = testset[i]
         rays = sample['rays'].to(device)
         gt_depth = torch.reshape(sample['depths'], (args.length, args.length)).to(device)
         
-        pred_depth = render_image(rays=rays,
+        c1s, c2s, a1s, a2s = render_image(rays=rays,
                                   batch_size=args.batch_size,
                                   img_shape=(args.length, args.length),
                                   sample_num_coarse=args.sample_num_coarse,
@@ -76,31 +86,81 @@ def test_all_depths() -> None:
                                   threshold=args.threshold,
                                   depth_only=True,
                                   device=device)
-        # TODO: flip and normalize
         
-        plt.imshow(gt_depth)
-        plt.show()
+        scale = -0.375
+        bias = -6 * scale
         
-        plt.imshow(pred_depth)
-        plt.show()
+        c1s = scale * c1s + bias
+        c2s = scale * c2s + bias
+        a1s = scale * a1s + bias
+        a2s = scale * a2s + bias
         
-        loss = criterion(gt_depth, pred_depth)
-        psnr = psnr_func(gt_depth, pred_depth)
-        losses.append(loss)
-        psnrs.append(psnr)
+        loss = criterion(gt_depth, c1s)
+        psnr = psnr_func(gt_depth, c1s)
+        c1s_losses.append(loss)
+        c1s_psnrs.append(psnr)
+        plt.imsave(f'renders/{args.ckpt}/test_depth/c1s/{i}.png', torch.clip(c1s, 0, 1).cpu().numpy())
         
-        plt.imsave(f'renders/{args.ckpt}/test/{i}.png', torch.clip(pred_depth, 0, 1).cpu().numpy())
+        loss = criterion(gt_depth, c2s)
+        psnr = psnr_func(gt_depth, c2s)
+        c2s_losses.append(loss)
+        c2s_psnrs.append(psnr)
+        plt.imsave(f'renders/{args.ckpt}/test_depth/c2s/{i}.png', torch.clip(c2s, 0, 1).cpu().numpy())
         
-    average_loss = sum(losses) / len(losses)
-    average_psnr = sum(psnrs) / len (psnrs)
-    
-    with open(f'renders/{args.ckpt}/test/results.txt', 'w') as f:
+        loss = criterion(gt_depth, a1s)
+        psnr = psnr_func(gt_depth, a1s)
+        a1s_losses.append(loss)
+        a1s_psnrs.append(psnr)
+        plt.imsave(f'renders/{args.ckpt}/test_depth/a1s/{i}.png', torch.clip(a1s, 0, 1).cpu().numpy())
+        
+        loss = criterion(gt_depth, a2s)
+        psnr = psnr_func(gt_depth, a2s)
+        a2s_losses.append(loss)
+        a2s_psnrs.append(psnr)
+        plt.imsave(f'renders/{args.ckpt}/test_depth/a2s/{i}.png', torch.clip(a2s, 0, 1).cpu().numpy())
+        
+    average_loss = sum(c1s_losses) / len(c1s_losses)
+    average_psnr = sum(c1s_psnrs) / len (c1s_psnrs)
+    with open(f'renders/{args.ckpt}/test/c1s/results.txt', 'w') as f:
         f.write(f'Average MSE Loss: {average_loss}\n')
-        for i, loss in enumerate(losses):
+        for i, loss in enumerate(c1s_losses):
             f.write(f'MSE Loss for Image {i}: {loss}\n')
         f.write('\n')
         f.write(f'Average PSNR: {average_psnr}\n')
-        for i, psnr in enumerate(psnrs):
+        for i, psnr in enumerate(c1s_psnrs):
+            f.write(f'PSNR for Image {i}: {psnr}\n')
+            
+    average_loss = sum(c2s_losses) / len(c2s_losses)
+    average_psnr = sum(c2s_psnrs) / len (c2s_psnrs)
+    with open(f'renders/{args.ckpt}/test/c2s/results.txt', 'w') as f:
+        f.write(f'Average MSE Loss: {average_loss}\n')
+        for i, loss in enumerate(c2s_losses):
+            f.write(f'MSE Loss for Image {i}: {loss}\n')
+        f.write('\n')
+        f.write(f'Average PSNR: {average_psnr}\n')
+        for i, psnr in enumerate(c2s_psnrs):
+            f.write(f'PSNR for Image {i}: {psnr}\n')
+            
+    average_loss = sum(a1s_losses) / len(a1s_losses)
+    average_psnr = sum(a1s_psnrs) / len (a1s_psnrs)
+    with open(f'renders/{args.ckpt}/test/a1s/results.txt', 'w') as f:
+        f.write(f'Average MSE Loss: {average_loss}\n')
+        for i, loss in enumerate(a1s_losses):
+            f.write(f'MSE Loss for Image {i}: {loss}\n')
+        f.write('\n')
+        f.write(f'Average PSNR: {average_psnr}\n')
+        for i, psnr in enumerate(a1s_psnrs):
+            f.write(f'PSNR for Image {i}: {psnr}\n')
+            
+    average_loss = sum(a2s_losses) / len(a2s_losses)
+    average_psnr = sum(a2s_psnrs) / len (a2s_psnrs)
+    with open(f'renders/{args.ckpt}/test/a2s/results.txt', 'w') as f:
+        f.write(f'Average MSE Loss: {average_loss}\n')
+        for i, loss in enumerate(a2s_losses):
+            f.write(f'MSE Loss for Image {i}: {loss}\n')
+        f.write('\n')
+        f.write(f'Average PSNR: {average_psnr}\n')
+        for i, psnr in enumerate(a2s_psnrs):
             f.write(f'PSNR for Image {i}: {psnr}\n')
         
 
