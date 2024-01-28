@@ -54,8 +54,8 @@ def train() -> None:
     
     if torch.cuda.is_available():
         device = 'cuda:0'
-    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        device = 'mps'
+    # elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+    #     device = 'mps'
     else:
         device = 'cpu'
     device = torch.device(device)

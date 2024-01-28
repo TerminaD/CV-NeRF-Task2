@@ -108,7 +108,7 @@ def render_rays(rays: torch.Tensor,
     dir_L = int(nerf_coarse.in_channels_dir / 6)
     
     xyz_encoder = PositionalEncoding(xyz_L)
-    xyz_encoded_coarse = xyz_encoder(xyzs_coarse/3)	# (ray_num * sample_num_coarse) * (6 * xyz_L)
+    xyz_encoded_coarse = xyz_encoder(xyzs_coarse/3)	# (ray_num * sample_num_coarse) * (6 * xyz_L), divided by 3 here for positional encoding
     
     dir_encoder = PositionalEncoding(dir_L)
     dir_encoded_base = dir_encoder(rays_d)
@@ -149,6 +149,7 @@ def render_rays(rays: torch.Tensor,
     xyzs_all = rays_o + rays_d * rearrange(depths_all, 'n1 n2 -> n2 n1 1').to(device)
     xyzs_all = rearrange(xyzs_all, 'sample ray xyz -> ray sample xyz') # Shape: ray_num * sample_num_coarse * 3
     xyzs_all = rearrange(xyzs_all, 'ray sample xyz -> (ray sample) xyz') # Assume first axis is ray
+    xyzs_encoded_all = xyz_encoder(xyzs_all/3)
     xyzs_encoded_all = xyz_encoder(xyzs_all/3)
     
     dir_encoded_all = torch.repeat_interleave(dir_encoded_base, sample_num_coarse+sample_num_fine, dim=0) # (ray_num * sample_num_coarse) * (6 * dir_L)
@@ -235,6 +236,11 @@ def render_depth(rays: torch.Tensor,
     
     weights_coarse = Ts_coarse * (1 - exps_coarse)
     
+    depths_c1 = torch.sum(weights_coarse * depths_coarse, dim=1)
+    
+    depth_indices_coarse = torch.sum(Ts_coarse > threshold, dim=1) - 1
+    depths_c2 = torch.gather(depths_coarse, 1, depth_indices_coarse[:, None])
+    
     depths_mid_coarse = 0.5 * (depths_coarse[: ,:-1] + depths_coarse[: ,1:])
     
     depths_fine = sample_pdf(depths_mid_coarse, 
@@ -261,11 +267,14 @@ def render_depth(rays: torch.Tensor,
     
     Ts_all = torch.cumprod(torch.cat((torch.ones(ray_num, 1).to(device), exps_all), dim=1), dim=1)[:, :-1]
     
-    depth_indices = torch.sum(Ts_all > threshold, dim=1)-1
+    weights_all = Ts_all * (1 - exps_all)
     
-    depths = torch.gather(depths_all, 1, depth_indices[:, None])
+    depths_a1 = torch.sum(weights_all * depths_all, dim=1)
     
-    return depths
+    depth_indices_all = torch.sum(Ts_all > threshold, dim=1)-1
+    depths_a2 = torch.gather(depths_all, 1, depth_indices_all[:, None])
+
+    return depths_c1, depths_c2, depths_a1, depths_a2
     
     
 @torch.no_grad
@@ -304,23 +313,46 @@ def render_image(rays: torch.Tensor,
     batches = torch.split(rays, batch_size)
     
     if depth_only:
-        depth_batches = []
+        c1s = []
+        c2s = []
+        a1s = []
+        a2s = []
+        
         for ray_batch in batches:
-            depth_batch = render_depth(ray_batch,
+            c1, c2, a1, a2 = render_depth(ray_batch,
                                        sample_num_coarse, 
                                        sample_num_fine,
                                        nerf_coarse,
                                        nerf_fine,
                                        threshold,
                                        device)
-            depth_batches.append(depth_batch)
-        last_depth_batch = depth_batches.pop()
-        depth_batches = torch.cat(depth_batches, dim=0)
-        depth_batches = torch.cat((depth_batches, last_depth_batch), dim=0)
+            c1s.append(c1)
+            c2s.append(c2)
+            a1s.append(a1)
+            a2s.append(a2)
+            
+        last_c1 = c1s.pop()
+        c1s = torch.cat(c1s, dim=0)
+        c1s = torch.cat((c1s, last_c1), dim=0)
         
-        depth_batches = depth_batches.reshape(img_shape[0], img_shape[1])
+        last_c2 = c2s.pop()
+        c2s = torch.cat(c2s, dim=0)
+        c2s = torch.cat((c2s, last_c2), dim=0)
         
-        return depth_batches
+        last_a1 = a1s.pop()
+        a1s = torch.cat(a1s, dim=0)
+        a1s = torch.cat((a1s, last_a1), dim=0)
+        
+        last_a2 = a2s.pop()
+        a2s = torch.cat(a2s, dim=0)
+        a2s = torch.cat((a2s, last_a2), dim=0)
+        
+        c1s = c1s.reshape(img_shape)
+        c2s = c2s.reshape(img_shape)
+        a1s = a1s.reshape(img_shape)
+        a2s = a2s.reshape(img_shape)
+        
+        return c1s, c2s, a1s, a2s
     
     else:
         rgb_batches = []
